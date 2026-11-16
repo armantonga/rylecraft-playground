@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Rylecraft Playground</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/style.css?v=12">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="tint"></div>
+<div id="flash"></div>
+
+<div id="home">
+  <button class="ib" id="bInfo" aria-label="How to play">i</button>
+  <div id="ver">v1.0.0 <span>✔</span></div>
+  <div id="hi" role="button" aria-label="Change your name"><span class="av"></span><span id="hn">Hi, builder! 👑</span><span class="ed">✏️</span></div>
+  <div id="hmain">
+    <img id="logo" alt="Rylecraft Playground" src="assets/logo.webp">
+    <div id="ban"><span>🍃</span>Build • Explore • Create • Adventure<span>🍃</span></div>
+    <button class="hb g" id="bCont"><span class="ic">▶</span><span class="tx">Play<small id="psub">Continue Adventure</small></span></button>
+    <button class="hb y" id="bNew"><span class="ic">＋</span><span class="tx">New World<small>Create a New Adventure</small></span></button>
+    <button class="hb b" id="bWorlds"><span class="ic">☰</span><span class="tx">My Worlds<small>Manage Your Saved Worlds</small></span></button>
+    <button class="hb s" id="bSet"><span class="ic">⚙️</span><span class="tx">Settings<small>Customize Your Game</small></span></button>
+    <button class="hb b" id="bAboutM"><span class="ic">i</span><span class="tx">About the Game<small>Meet the game</small></span></button>
+  </div>
+  <img id="hero" alt="" src="assets/hero.webp">
+  <div id="sign"><span class="cr">👑</span>Your Imagination<br><b>is the Limit!</b></div>
+  <button id="bAbout" aria-label="About the Game">
+    <span class="ab-shot"><img src="assets/hero.webp" alt=""><span class="sh">🐑</span></span>
+    <span class="ab-label"><span class="ab-info">i</span>About the Game<span class="ab-arrow">›</span></span>
+  </button>
+  <div id="feat">
+    <div class="f f1"><i>🧱</i><span>Build<br>Anything</span></div>
+    <div class="f f2"><i>🗺️</i><span>Explore<br>New Lands</span></div>
+    <div class="f f3"><i>🐴</i><span>Ride<br>Animals</span></div>
+    <div class="f f4"><i>🕊️</i><span>Fly<br>Anywhere</span></div>
+    <div class="f f5"><i>⛏️</i><span>Mine &amp;<br>Discover</span></div>
+  </div>
+  <button class="ib" id="bUp" aria-label="Updates">📣<small>Updates</small></button>
+</div>
+
+<div id="hud" class="hide">
+  <button id="home2" aria-label="Home">🏠</button>
+  <button id="vw" aria-label="Change view">🧍</button>
+  <button id="wx" aria-label="Weather — tap to skip ahead">☀️</button>
+  <button id="bMusic" aria-label="Background music and ambience on" aria-pressed="true">🎵</button>
+  <button id="bFull" aria-label="Enter fullscreen" aria-pressed="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path class="o" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+      <path class="i" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
+    </svg>
+  </button>
+  <div id="joy"><i class="a n">▲</i><i class="a s">▼</i><i class="a w">◀</i><i class="a e">▶</i><div id="knob"></div></div>
+  <div id="ud"><button class="r" id="up" aria-label="Higher">+</button><button class="r" id="dn" aria-label="Lower">−</button></div>
+  <button class="r" id="jp" aria-label="Jump">⬆️<small>Jump</small></button>
+  <div id="xh"></div>
+  <button class="r" id="sw" aria-label="Action">🔨<small>Build</small></button>
+  <button class="r hide" id="dm" aria-label="Mount">🐴<small>Mount</small></button>
+  <div id="pal" class="hide"></div>
+  <div id="bar">
+    <button class="t" id="tB"><div id="cur"></div>Blocks</button>
+    <button class="t on" id="tP"><b>🔨</b>Build</button>
+    <button class="t" id="tE"><b>⛏️</b>Mine</button>
+    <button class="t" id="tW"><b>⚔️</b>Sword</button>
+    <button class="t" id="tF"><b>🕊️</b>Fly</button>
+    <button class="t" id="tS"><b>💾</b>Save</button>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="m" class="modal hide"></div>
+
+<script src="vendor/three.min.js"></script>
+<script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
+<script src="js/audio.js?v=13"></script>
+<script src="js/game.js?v=31"></script>
+</body>
+</html>

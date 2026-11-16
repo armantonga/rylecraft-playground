@@ -1,0 +1,9 @@
+# Not needed to play the game in the browser
+.git/
+.github/
+docs/
+assets/reference/
+
+# Repo metadata
+README.md
+.gitignore
