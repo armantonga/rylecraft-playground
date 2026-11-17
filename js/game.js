@@ -863,8 +863,9 @@ function howToPlayModal(){
     m.onclick=e=>{if(e.target===m)close()};
   });
 }
+let swallowHomeClick=false;
 function enter(){$('home').classList.add('hide');$('hud').classList.remove('hide');swatch();setMode('build');sync()}
-function goHome(){if(!$('hud').classList.contains('hide'))save();$('hud').classList.add('hide');$('home').classList.remove('hide');playSub()}
+function goHome(){if(!$('hud').classList.contains('hide'))save();$('hud').classList.add('hide');$('home').classList.remove('hide');swallowHomeClick=true;playSub()}
 $('bNew').onclick=()=>{
   if(hasSave())modal('<h2>Start a new world?</h2><p>Your saved world will be replaced.</p><div class="row"><button class="big soft" id="n">Keep it</button><button class="big" id="y">New world</button></div>',m=>{
     m.querySelector('#n').onclick=close;m.querySelector('#y').onclick=()=>{close();try{localStorage.removeItem(KEY)}catch(e){}newWorld();enter()}});
@@ -954,6 +955,13 @@ $('dm').onclick=()=>riding?dismount():mountNear();
 // buttons react the moment a finger touches them, even while the joystick is held
 $('hud').addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('button');if(b&&!['up','dn','jp','sw','bFull'].includes(b.id)){e.preventDefault();b.click()}});
 $('hud').addEventListener('click',e=>{if(e.isTrusted&&!(e.target.closest&&e.target.closest('#bFull')))e.stopPropagation()},true);
+// The in-game Home button and the home-screen info button share the same
+// corner, so the tail of the tap that closes the HUD would otherwise open
+// How to Play. Swallow exactly the click belonging to that transition; a new
+// touch clears the flag, so the next real tap always works (and a long press
+// cannot outlast it).
+document.addEventListener('pointerdown',()=>{swallowHomeClick=false},true);
+$('home').addEventListener('click',e=>{if(e.isTrusted&&swallowHomeClick){swallowHomeClick=false;e.stopPropagation();e.preventDefault()}},true);
 $('vw').onclick=()=>{third=!third;me.visible=third;$('vw').textContent=third?'🧍':'👁️'};
 $('bSet').onclick=()=>{
   const A=window.RyleAudio,s=A?A.getSettings():{master:.85,music:.6,sfx:.85,ambient:.7,muted:false};
