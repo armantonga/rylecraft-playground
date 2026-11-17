@@ -888,34 +888,59 @@ syncMusicBtn();
 const bFull=$('bFull'),bFs=$('bFs');
 const MOBILE=(()=>{try{return (matchMedia('(hover:none) and (pointer:coarse)').matches&&!matchMedia('(hover:hover)').matches)||(navigator.maxTouchPoints>1&&!matchMedia('(hover:hover)').matches)}catch(e){return false}})();
 if(MOBILE)document.body.classList.add('mobile-ui');
-// installed to the home screen: the app already runs without browser chrome
+// installed to the home screen: no browser chrome, but Android still keeps the
+// status and navigation bars in standalone mode, so the fullscreen toggle matters
 const STANDALONE=(()=>{try{return navigator.standalone===true||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches}catch(e){return false}})();
+// an installed app launched in the manifest's fullscreen mode already has no
+// system bars, so there is nothing left for a toggle to do
+const DISPLAY_FULLSCREEN=(()=>{try{return matchMedia('(display-mode: fullscreen)').matches}catch(e){return false}})();
 if(STANDALONE)document.body.classList.add('standalone');
+// iPhone and iPad only ever get video fullscreen, so they need the install guide
+// instead of a toggle that cannot do anything
+const IS_IOS=(()=>{const ua=navigator.userAgent||'';return /iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)})();
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement||null;
 const fsSupported=()=>{const e=document.documentElement;return !!(e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen)};
 function syncFullBtn(){
   const on=!!fsEl(),sup=fsSupported();
   [bFull,bFs].forEach(b=>{b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');b.setAttribute('aria-label',on?'Exit fullscreen':'Enter fullscreen')});
-  // the in-game button only makes sense where the browser can actually do it;
-  // the home button stays put on touch devices so iPhone users get instructions
-  bFull.classList.toggle('hide',!sup||STANDALONE);
-  bFs.classList.toggle('hide',STANDALONE);
+  // The in-game toggle works whenever the browser has the API — including a
+  // home-screen app, where it hides Android's system bars for true fullscreen.
+  // The home button also doubles as the iOS install guide, so it only goes away
+  // once the app is installed and there is nothing left to expand.
+  bFull.classList.toggle('hide',!sup||DISPLAY_FULLSCREEN);
+  bFs.classList.toggle('hide',STANDALONE&&(!sup||DISPLAY_FULLSCREEN));
 }
 function fullscreenHelp(){
   modal('<h2>Fullscreen on iPhone &amp; iPad</h2><p>Safari cannot make a website fullscreen, but the home-screen app runs with no browser bars at all.</p><ol class="fs-list"><li>Tap the <b>Share</b> button <span class="fs-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 10H4v11h16V10h-2"/></svg></span> in Safari’s toolbar.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Open <b>Rylecraft</b> from your Home Screen.</li></ol><button class="big" id="fsh">Got it!</button>',m=>{m.querySelector('#fsh').onclick=close});
 }
+function fsBlocked(){
+  if(IS_IOS)fullscreenHelp();
+  else toast('Fullscreen was blocked — tap again to retry');
+}
 function toggleFull(){
-  if(STANDALONE){toast('Already fullscreen — enjoy! 🎮');return}
-  if(!fsSupported()){fullscreenHelp();return}
+  if(DISPLAY_FULLSCREEN){toast('Already fullscreen — enjoy! 🎮');return}
+  if(!fsSupported()){
+    // iPhone/iPad Safari: nothing to toggle, show the install route instead
+    if(STANDALONE)toast('Already fullscreen — enjoy! 🎮');
+    else fullscreenHelp();
+    return
+  }
   try{
     if(fsEl()){
       const ex=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen;
       if(ex){const p=ex.call(document);if(p&&p.catch)p.catch(()=>{})}
     }else{
-      const e=document.documentElement,req=e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen;
-      if(req){const p=req.call(e);if(p&&p.catch)p.catch(()=>fullscreenHelp())}
+      const e=document.documentElement;
+      if(e.requestFullscreen){
+        // navigationUI:'hide' asks Chrome to drop the system bars as well
+        const p=e.requestFullscreen({navigationUI:'hide'});
+        if(p&&p.catch)p.catch(fsBlocked);
+      }else{
+        const req=e.webkitRequestFullscreen||e.msRequestFullscreen;
+        if(req){const p=req.call(e);if(p&&p.catch)p.catch(fsBlocked)}
+      }
     }
-  }catch(e){fullscreenHelp()}
+  }catch(e){fsBlocked()}
   setTimeout(syncFullBtn,80);
 }
 bFull.onclick=toggleFull;bFs.onclick=toggleFull;
@@ -937,7 +962,7 @@ function goLandscape(){
       else landscapeNudge();
     }catch(e){landscapeNudge()}
   };
-  if(fsEl()){lock();return}
+  if(fsEl()||DISPLAY_FULLSCREEN){lock();return}
   if(!fsSupported()){landscapeNudge();return}
   try{
     const e=document.documentElement,req=e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen;
