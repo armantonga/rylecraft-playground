@@ -883,11 +883,24 @@ function syncMusicBtn(){
 }
 bMusic.onclick=()=>{if(window.RyleAudio){const on=!RyleAudio.isMusicEnabled();RyleAudio.setMusicEnabled(on);toast(on?'Music & ambience on 🎵':'Music & ambience off 🔇')}syncMusicBtn()};
 syncMusicBtn();
-const bFull=$('bFull');
+/* ---- fullscreen: one toggle shared by the in-game button and the home button ---- */
+const bFull=$('bFull'),bFs=$('bFs');
+const MOBILE=(()=>{try{return (matchMedia('(hover:none) and (pointer:coarse)').matches&&!matchMedia('(hover:hover)').matches)||(navigator.maxTouchPoints>1&&!matchMedia('(hover:hover)').matches)}catch(e){return false}})();
+if(MOBILE)document.body.classList.add('mobile-ui');
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement||null;
 const fsSupported=()=>{const e=document.documentElement;return !!(e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen)};
-function syncFullBtn(){const on=!!fsEl();bFull.classList.toggle('on',on);bFull.classList.toggle('hide',!fsSupported());bFull.setAttribute('aria-pressed',on?'true':'false');bFull.setAttribute('aria-label',on?'Exit fullscreen':'Enter fullscreen')}
-bFull.onclick=()=>{
+function syncFullBtn(){
+  const on=!!fsEl(),sup=fsSupported();
+  [bFull,bFs].forEach(b=>{b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');b.setAttribute('aria-label',on?'Exit fullscreen':'Enter fullscreen')});
+  // the in-game button only makes sense where the browser can actually do it;
+  // the home button stays put on touch devices so iPhone users get instructions
+  bFull.classList.toggle('hide',!sup);
+}
+function fullscreenHelp(){
+  modal('<h2>Go fullscreen</h2><p>On iPhone and iPad, tap the <b>Share</b> button in Safari, choose <b>Add to Home Screen</b>, then open Rylecraft from your home screen. It starts without browser bars — just the game.</p><button class="big" id="fsh">Got it!</button>',m=>{m.querySelector('#fsh').onclick=close});
+}
+function toggleFull(){
+  if(!fsSupported()){fullscreenHelp();return}
   try{
     if(fsEl()){
       const ex=document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen;
@@ -898,9 +911,31 @@ bFull.onclick=()=>{
     }
   }catch(e){}
   setTimeout(syncFullBtn,80);
-};
+}
+bFull.onclick=toggleFull;bFs.onclick=toggleFull;
 ['fullscreenchange','webkitfullscreenchange','MSFullscreenChange'].forEach(ev=>document.addEventListener(ev,syncFullBtn));
 syncFullBtn();
+
+/* ---- one-time "the game is better in landscape" tip for phones and tablets ---- */
+const TIP_KEY='rylecraft.landscapeTip';
+const isPortrait=()=>{try{return matchMedia('(orientation:portrait)').matches}catch(e){return innerHeight>=innerWidth}};
+function tipSeen(){try{return localStorage.getItem(TIP_KEY)==='1'}catch(e){return false}}
+function markTipSeen(){try{localStorage.setItem(TIP_KEY,'1')}catch(e){}}
+function landscapeTip(){
+  if(!MOBILE||!isPortrait()||tipSeen())return;
+  if(!$('m').classList.contains('hide'))return;   // never stack on the name prompt
+  modal('<div class="rt-art" aria-hidden="true"><span class="rt-phone"></span><span class="rt-arrow">↻</span></div><h2>Turn your device sideways</h2><p>The game is much better in <b>landscape</b> — you get more of the world, a comfy joystick and room for every button.</p><button class="big" id="rtok">Got it!</button>',m=>{
+    m.querySelector('.card').classList.add('rotatetip');
+    m.querySelector('#rtok').onclick=()=>{markTipSeen();close()};
+    m.onclick=e=>{if(e.target===m){markTipSeen();close()}};
+  });
+}
+function orientationChanged(){
+  // obeying the tip counts as seeing it, and closes the card straight away
+  if(!isPortrait()&&!$('m').classList.contains('hide')&&$('m').querySelector('.rt-art')){markTipSeen();close()}
+}
+['orientationchange','resize'].forEach(ev=>addEventListener(ev,orientationChanged));
+
 $('dm').onclick=()=>riding?dismount():mountNear();
 // buttons react the moment a finger touches them, even while the joystick is held
 $('hud').addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('button');if(b&&!['up','dn','jp','sw','bFull'].includes(b.id)){e.preventDefault();b.click()}});
@@ -924,12 +959,12 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function getName(){if(NAME)return NAME;try{NAME=localStorage.getItem('rylecraft.name')||''}catch(e){}return NAME}
 function setName(v){NAME=v;try{localStorage.setItem('rylecraft.name',v)}catch(e){}document.getElementById('hn').textContent='Hi, '+v+'! 👑'}
 function askName(first){modal('<h2>'+(first?'Welcome, builder! 👋':'Change your name')+'</h2><p>What should we call you?</p><input id="nm" maxlength="14" autocomplete="off" placeholder="Your name" value="'+esc(getName())+'"><div class="row">'+(first?'':'<button class="big soft" id="nc">Cancel</button>')+'<button class="big" id="ny">'+(first?'Let’s go!':'Save')+'</button></div>',m=>{
-  const inp=m.querySelector('#nm'),ok=()=>{const v=inp.value.trim().slice(0,14);if(!v){inp.focus();return}setName(v);close();toast('Hi, '+v+'! 👋')};
+  const inp=m.querySelector('#nm'),ok=()=>{const v=inp.value.trim().slice(0,14);if(!v){inp.focus();return}setName(v);close();toast('Hi, '+v+'! 👋');setTimeout(landscapeTip,500)};
   m.querySelector('#ny').onclick=ok;inp.addEventListener('keydown',e=>{if(e.key==='Enter')ok()});const c=m.querySelector('#nc');if(c)c.onclick=close;setTimeout(()=>inp.focus(),60)})}
 $('hi').onclick=()=>askName(false);
 $('bAbout').onclick=aboutModal;
 $('bAboutM').onclick=aboutModal;
-if(getName())setName(getName());else askName(true);
+if(getName()){setName(getName());setTimeout(landscapeTip,700)}else askName(true);
 $('bWorlds').onclick=()=>hasSave()?modal('<h2>My Worlds</h2><p>🌍 '+esc(getName()||'My')+'’s World<br>Saved on this device</p><div class="row"><button class="big soft" id="d">Delete</button><button class="big" id="p">Play</button></div>',m=>{m.querySelector('#p').onclick=()=>{close();if(load())enter()};m.querySelector('#d').onclick=()=>{try{localStorage.removeItem(KEY)}catch(e){}close();playSub();toast('World deleted')}}):modal('<h2>My Worlds</h2><p>No worlds yet. Tap New World to start!</p><button class="big" id="o">OK</button>',m=>{m.querySelector('#o').onclick=close});
 $('bInfo').onclick=howToPlayModal;
 $('bUp').onclick=releasesModal;
