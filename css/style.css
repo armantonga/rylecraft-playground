@@ -159,6 +159,9 @@ input{-webkit-user-select:text;user-select:text}
 @media (max-width:360px){
   #hn{max-width:26vw}
   #ver{font-size:11px;padding:2px 6px}
+  /* three top-bar icons need the space; trim the name badge instead */
+  body.mobile-ui #hi .ed{display:none}
+  body.mobile-ui #hn{max-width:22vw}
   /* no room left of the name badge once the fullscreen button joins the row */
   body.mobile-ui #ver{display:none}
 }
