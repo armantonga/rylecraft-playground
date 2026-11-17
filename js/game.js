@@ -916,25 +916,39 @@ bFull.onclick=toggleFull;bFs.onclick=toggleFull;
 ['fullscreenchange','webkitfullscreenchange','MSFullscreenChange'].forEach(ev=>document.addEventListener(ev,syncFullBtn));
 syncFullBtn();
 
-/* ---- one-time "the game is better in landscape" tip for phones and tablets ---- */
-const TIP_KEY='rylecraft.landscapeTip';
+/* ---- forced landscape: phones and tablets must play sideways ---- */
+const bLand=$('bLand'),rot=$('rot'),rotGo=$('rotGo');
 const isPortrait=()=>{try{return matchMedia('(orientation:portrait)').matches}catch(e){return innerHeight>=innerWidth}};
-function tipSeen(){try{return localStorage.getItem(TIP_KEY)==='1'}catch(e){return false}}
-function markTipSeen(){try{localStorage.setItem(TIP_KEY,'1')}catch(e){}}
-function landscapeTip(){
-  if(!MOBILE||!isPortrait()||tipSeen())return;
-  if(!$('m').classList.contains('hide'))return;   // never stack on the name prompt
-  modal('<div class="rt-art" aria-hidden="true"><span class="rt-phone"></span><span class="rt-arrow">↻</span></div><h2>Turn your device sideways</h2><p>The game is much better in <b>landscape</b> — you get more of the world, a comfy joystick and room for every button.</p><button class="big" id="rtok">Got it!</button>',m=>{
-    m.querySelector('.card').classList.add('rotatetip');
-    m.querySelector('#rtok').onclick=()=>{markTipSeen();close()};
-    m.onclick=e=>{if(e.target===m){markTipSeen();close()}};
-  });
+function landscapeNudge(){
+  bLand.classList.add('nudge');setTimeout(()=>bLand.classList.remove('nudge'),600);
+  toast('Rotate the device — landscape is the way 🎮');
 }
-function orientationChanged(){
-  // obeying the tip counts as seeing it, and closes the card straight away
-  if(!isPortrait()&&!$('m').classList.contains('hide')&&$('m').querySelector('.rt-art')){markTipSeen();close()}
+function goLandscape(){
+  const lock=()=>{
+    try{
+      const so=screen.orientation;
+      if(so&&typeof so.lock==='function'){const p=so.lock('landscape');if(p&&p.catch)p.catch(landscapeNudge)}
+      else landscapeNudge();
+    }catch(e){landscapeNudge()}
+  };
+  if(fsEl()){lock();return}
+  if(!fsSupported()){landscapeNudge();return}
+  try{
+    const e=document.documentElement,req=e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen;
+    const p=req.call(e);
+    if(p&&p.then)p.then(()=>{syncFullBtn();lock()}).catch(landscapeNudge);
+    else setTimeout(()=>{syncFullBtn();lock()},120);
+  }catch(e){landscapeNudge()}
 }
-['orientationchange','resize'].forEach(ev=>addEventListener(ev,orientationChanged));
+function syncRotGate(){
+  const sideways=MOBILE&&!isPortrait();
+  rot.classList.toggle('hide',!MOBILE||!isPortrait());
+  bLand.classList.toggle('on',sideways);
+  bLand.setAttribute('aria-pressed',sideways?'true':'false');
+}
+bLand.onclick=goLandscape;rotGo.onclick=goLandscape;
+['orientationchange','resize'].forEach(ev=>addEventListener(ev,syncRotGate));
+syncRotGate();
 
 $('dm').onclick=()=>riding?dismount():mountNear();
 // buttons react the moment a finger touches them, even while the joystick is held
@@ -959,12 +973,12 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function getName(){if(NAME)return NAME;try{NAME=localStorage.getItem('rylecraft.name')||''}catch(e){}return NAME}
 function setName(v){NAME=v;try{localStorage.setItem('rylecraft.name',v)}catch(e){}document.getElementById('hn').textContent='Hi, '+v+'! 👑'}
 function askName(first){modal('<h2>'+(first?'Welcome, builder! 👋':'Change your name')+'</h2><p>What should we call you?</p><input id="nm" maxlength="14" autocomplete="off" placeholder="Your name" value="'+esc(getName())+'"><div class="row">'+(first?'':'<button class="big soft" id="nc">Cancel</button>')+'<button class="big" id="ny">'+(first?'Let’s go!':'Save')+'</button></div>',m=>{
-  const inp=m.querySelector('#nm'),ok=()=>{const v=inp.value.trim().slice(0,14);if(!v){inp.focus();return}setName(v);close();toast('Hi, '+v+'! 👋');setTimeout(landscapeTip,500)};
+  const inp=m.querySelector('#nm'),ok=()=>{const v=inp.value.trim().slice(0,14);if(!v){inp.focus();return}setName(v);close();toast('Hi, '+v+'! 👋')};
   m.querySelector('#ny').onclick=ok;inp.addEventListener('keydown',e=>{if(e.key==='Enter')ok()});const c=m.querySelector('#nc');if(c)c.onclick=close;setTimeout(()=>inp.focus(),60)})}
 $('hi').onclick=()=>askName(false);
 $('bAbout').onclick=aboutModal;
 $('bAboutM').onclick=aboutModal;
-if(getName()){setName(getName());setTimeout(landscapeTip,700)}else askName(true);
+if(getName())setName(getName());else askName(true);
 $('bWorlds').onclick=()=>hasSave()?modal('<h2>My Worlds</h2><p>🌍 '+esc(getName()||'My')+'’s World<br>Saved on this device</p><div class="row"><button class="big soft" id="d">Delete</button><button class="big" id="p">Play</button></div>',m=>{m.querySelector('#p').onclick=()=>{close();if(load())enter()};m.querySelector('#d').onclick=()=>{try{localStorage.removeItem(KEY)}catch(e){}close();playSub();toast('World deleted')}}):modal('<h2>My Worlds</h2><p>No worlds yet. Tap New World to start!</p><button class="big" id="o">OK</button>',m=>{m.querySelector('#o').onclick=close});
 $('bInfo').onclick=howToPlayModal;
 $('bUp').onclick=releasesModal;

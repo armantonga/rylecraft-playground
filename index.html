@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Rylecraft Playground</title>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/style.css?v=14">
+<link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -18,6 +18,11 @@
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path class="o" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
       <path class="i" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
+    </svg>
+  </button>
+  <button id="bLand" aria-label="Switch to landscape mode" aria-pressed="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zM10.23 1.75c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z"/>
     </svg>
   </button>
   <div id="ver">v1.0.0 <span>✔</span></div>
@@ -74,12 +79,21 @@
     <button class="t" id="tS"><b>💾</b>Save</button>
   </div>
 </div>
+<div id="rot" class="hide" role="dialog" aria-modal="true" aria-labelledby="rotT">
+  <div class="card rotatetip">
+    <div class="rt-art" aria-hidden="true"><span class="rt-phone"></span><span class="rt-arrow">↻</span></div>
+    <h2 id="rotT">Turn your device sideways</h2>
+    <p>Rylecraft is played in <b>landscape</b>. Rotate your phone or tablet to play.</p>
+    <button class="big" id="rotGo">Go landscape</button>
+    <small class="rot-note">If the screen stays portrait, turn off Orientation Lock in your quick settings, then try again.</small>
+  </div>
+</div>
 <div id="toast"></div>
 <div id="m" class="modal hide"></div>
 
 <script src="vendor/three.min.js"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <script src="js/audio.js?v=13"></script>
-<script src="js/game.js?v=32"></script>
+<script src="js/game.js?v=33"></script>
 </body>
 </html>
