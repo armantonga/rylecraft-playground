@@ -888,6 +888,9 @@ syncMusicBtn();
 const bFull=$('bFull'),bFs=$('bFs');
 const MOBILE=(()=>{try{return (matchMedia('(hover:none) and (pointer:coarse)').matches&&!matchMedia('(hover:hover)').matches)||(navigator.maxTouchPoints>1&&!matchMedia('(hover:hover)').matches)}catch(e){return false}})();
 if(MOBILE)document.body.classList.add('mobile-ui');
+// installed to the home screen: the app already runs without browser chrome
+const STANDALONE=(()=>{try{return navigator.standalone===true||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches}catch(e){return false}})();
+if(STANDALONE)document.body.classList.add('standalone');
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement||null;
 const fsSupported=()=>{const e=document.documentElement;return !!(e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen)};
 function syncFullBtn(){
@@ -895,12 +898,14 @@ function syncFullBtn(){
   [bFull,bFs].forEach(b=>{b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');b.setAttribute('aria-label',on?'Exit fullscreen':'Enter fullscreen')});
   // the in-game button only makes sense where the browser can actually do it;
   // the home button stays put on touch devices so iPhone users get instructions
-  bFull.classList.toggle('hide',!sup);
+  bFull.classList.toggle('hide',!sup||STANDALONE);
+  bFs.classList.toggle('hide',STANDALONE);
 }
 function fullscreenHelp(){
-  modal('<h2>Go fullscreen</h2><p>On iPhone and iPad, tap the <b>Share</b> button in Safari, choose <b>Add to Home Screen</b>, then open Rylecraft from your home screen. It starts without browser bars — just the game.</p><button class="big" id="fsh">Got it!</button>',m=>{m.querySelector('#fsh').onclick=close});
+  modal('<h2>Fullscreen on iPhone &amp; iPad</h2><p>Safari cannot make a website fullscreen, but the home-screen app runs with no browser bars at all.</p><ol class="fs-list"><li>Tap the <b>Share</b> button <span class="fs-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 10H4v11h16V10h-2"/></svg></span> in Safari’s toolbar.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Open <b>Rylecraft</b> from your Home Screen.</li></ol><button class="big" id="fsh">Got it!</button>',m=>{m.querySelector('#fsh').onclick=close});
 }
 function toggleFull(){
+  if(STANDALONE){toast('Already fullscreen — enjoy! 🎮');return}
   if(!fsSupported()){fullscreenHelp();return}
   try{
     if(fsEl()){
@@ -908,9 +913,9 @@ function toggleFull(){
       if(ex){const p=ex.call(document);if(p&&p.catch)p.catch(()=>{})}
     }else{
       const e=document.documentElement,req=e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen;
-      if(req){const p=req.call(e);if(p&&p.catch)p.catch(()=>{})}
+      if(req){const p=req.call(e);if(p&&p.catch)p.catch(()=>fullscreenHelp())}
     }
-  }catch(e){}
+  }catch(e){fullscreenHelp()}
   setTimeout(syncFullBtn,80);
 }
 bFull.onclick=toggleFull;bFs.onclick=toggleFull;

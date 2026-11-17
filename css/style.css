@@ -222,6 +222,13 @@ body.mobile-ui #home:not(.hide)~#toast{top:auto;bottom:calc(env(safe-area-inset-
 #rotGo{width:100%}
 .rot-note{display:block;max-width:310px;font-size:12.5px;line-height:1.35;font-weight:700;color:#8a7a62}
 
+/* ---- iPhone/iPad fullscreen help: numbered Add to Home Screen steps ---- */
+.card .fs-list{counter-reset:fsstep;display:flex;flex-direction:column;gap:9px;width:100%;margin:0;padding:0;list-style:none;text-align:left}
+.card .fs-list li{counter-increment:fsstep;position:relative;padding-left:31px;font-size:clamp(13px,3.6vw,15.5px);font-weight:600;line-height:1.35;color:#5d4c36}
+.card .fs-list li::before{content:counter(fsstep);position:absolute;left:0;top:1px;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#2f8bff;color:#fff;font-weight:900;font-size:12.5px;line-height:1}
+.fs-ic{display:inline-grid;place-items:center;width:20px;height:20px;vertical-align:-4px;color:#2f7fd6}
+.fs-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
 /* ---- landscape tip card (shared by the gate) ---- */
 .card.rotatetip{position:relative;max-width:400px;padding:22px 20px 18px;gap:10px}
 .card.rotatetip h2{font-size:clamp(21px,5.6vw,27px);line-height:1.15}

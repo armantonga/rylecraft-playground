@@ -1,0 +1,16 @@
+{
+  "name": "Rylecraft Playground",
+  "short_name": "Rylecraft",
+  "description": "Build, explore and create in a blocky world of forests, deserts, snow and friendly animals.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#8fd3ff",
+  "theme_color": "#5aa9ff",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
