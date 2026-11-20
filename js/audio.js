@@ -468,6 +468,17 @@ window.RyleAudio = (function () {
       tone('sine', midi(84), t + .11, .5, .045, out);
     } else if (kind === 'close') {
       tone('sine', 430, t, .07, .03, out, 320);
+    } else if (kind === 'chest') {
+      noise(t, .2, .045, out, { type: 'bandpass', freq: 380, to: 900, q: 1.2 });
+      tone('triangle', 170, t, .14, .05, out, 110);
+      [0, .1, .2].forEach(function (d, i) {
+        tone('sine', midi([76, 79, 84][i]), t + .2 + d, .34, .035, out);
+      });
+    } else if (kind === 'loot') {
+      [0, .07, .14].forEach(function (d, i) {
+        tone('sine', midi([84, 88, 91][i]), t + d, .28, .045, out);
+      });
+      tone('sine', midi(96), t + .21, .3, .018, out);
     } else {
       tone('sine', 880, t, .045, .035, out, 700);
       noise(t, .025, .015, out, { type: 'highpass', freq: 2500 });

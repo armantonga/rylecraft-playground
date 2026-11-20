@@ -13,7 +13,7 @@
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="css/style.css?v=17">
+<link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -61,30 +61,31 @@
 </div>
 
 <div id="hud" class="hide">
-  <button id="home2" aria-label="Home">🏠</button>
-  <button id="vw" aria-label="Change view">🧍</button>
-  <button id="wx" aria-label="Weather — tap to skip ahead">☀️</button>
-  <button id="bMusic" aria-label="Background music and ambience on" aria-pressed="true">🎵</button>
-  <button id="bFull" aria-label="Enter fullscreen" aria-pressed="false">
+  <button id="home2" data-k="H" aria-label="Home">🏠</button>
+  <button id="bBag" data-k="G" aria-label="Open your weapon bag">🎒<span id="bBagN" class="hide">0</span></button>
+  <button id="vw" data-k="V" aria-label="Change view">🧍</button>
+  <button id="wx" data-k="T" aria-label="Weather — tap to skip ahead">☀️</button>
+  <button id="bMusic" data-k="M" aria-label="Background music and ambience on" aria-pressed="true">🎵</button>
+  <button id="bFull" data-k="Alt+↵" aria-label="Enter fullscreen" aria-pressed="false">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path class="o" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
       <path class="i" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
     </svg>
   </button>
+  <div id="xh" class="hide"></div>
   <div id="joy"><i class="a n">▲</i><i class="a s">▼</i><i class="a w">◀</i><i class="a e">▶</i><div id="knob"></div></div>
   <div id="ud"><button class="r" id="up" aria-label="Higher">+</button><button class="r" id="dn" aria-label="Lower">−</button></div>
   <button class="r" id="jp" aria-label="Jump">⬆️<small>Jump</small></button>
-  <div id="xh"></div>
   <button class="r" id="sw" aria-label="Action">🔨<small>Build</small></button>
-  <button class="r hide" id="dm" aria-label="Mount">🐴<small>Mount</small></button>
+  <button class="r hide" id="dm" data-k="R" aria-label="Mount">🐴<small>Mount</small></button>
   <div id="pal" class="hide"></div>
   <div id="bar">
-    <button class="t" id="tB"><div id="cur"></div>Blocks</button>
-    <button class="t on" id="tP"><b>🔨</b>Build</button>
-    <button class="t" id="tE"><b>⛏️</b>Mine</button>
-    <button class="t" id="tW"><b>⚔️</b>Sword</button>
-    <button class="t" id="tF"><b>🕊️</b>Fly</button>
-    <button class="t" id="tS"><b>💾</b>Save</button>
+    <button class="t" id="tB"><div id="cur"></div><span class="tl">Blocks<i class="k">B</i></span></button>
+    <button class="t on" id="tP"><b>🔨</b><span class="tl">Build<i class="k">1</i></span></button>
+    <button class="t" id="tE"><b>⛏️</b><span class="tl">Mine<i class="k">2</i></span></button>
+    <button class="t" id="tW"><b>⚔️</b><span class="tl">Sword<i class="k">3</i></span></button>
+    <button class="t" id="tF"><b>🕊️</b><span class="tl">Fly<i class="k">F</i></span></button>
+    <button class="t" id="tS"><b>💾</b><span class="tl">Save<i class="k" id="tSaveK">Ctrl+S</i></span></button>
   </div>
 </div>
 <div id="rot" class="hide" role="dialog" aria-modal="true" aria-labelledby="rotT">
@@ -101,7 +102,7 @@
 
 <script src="vendor/three.min.js"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
-<script src="js/audio.js?v=13"></script>
-<script src="js/game.js?v=36"></script>
+<script src="js/audio.js?v=14"></script>
+<script src="js/game.js?v=60"></script>
 </body>
 </html>

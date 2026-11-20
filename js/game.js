@@ -98,6 +98,12 @@ g.position.set(Math.random()*240-60,38+Math.random()*6,Math.random()*240-60);sce
 // highlight
 const hl=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02,1.02,1.02)),new THREE.LineBasicMaterial({color:0xffffff}));
 hl.visible=false;scene.add(hl);let hlT;
+// the build/mine target guide: a white box on the block you will act on,
+// with a contrasting outer edge so it reads on snow, sand and night skies alike
+const aimD=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04,1.04,1.04)),new THREE.LineBasicMaterial({color:0x0d1b2a,transparent:true,opacity:.6,depthTest:false,depthWrite:false}));
+const aimW=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.01,1.01,1.01)),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
+aimD.renderOrder=20;aimW.renderOrder=21;
+const aim=new THREE.Group();aim.add(aimD,aimW);aim.visible=false;scene.add(aim);
 
 // ---------- world ----------
 // ---- endless procedural world: a 128x128 window of terrain follows you; your edits are remembered ----
@@ -146,7 +152,7 @@ function gen(){world.fill(0);const M=6,PW=W+2*M,HM=new Uint8Array(PW*(D+2*M)),BM
     houses()}
   for(const[k,v]of EDITS){const p=k.split('|'),x=+p[0]-ox,z=+p[2]-oz;if(x>=0&&z>=0&&x<W&&z<D)world[ix(x,+p[1],z)]=v}
   scanTorches()}
-function startAt(gx,gz,seed,flat){SEED=seed;FLAT=flat;EDITS=new Map();ox=Math.round((gx-W/2)/16)*16;oz=Math.round((gz-D/2)/16)*16;gen();pos.set(gx-ox,FLATH+3,gz-oz);yaw=0;pitch=-.15;fly=false;sync();rebuild();spawnAnimals()}
+function startAt(gx,gz,seed,flat){SEED=seed;FLAT=flat;EDITS=new Map();resetLoot();ox=Math.round((gx-W/2)/16)*16;oz=Math.round((gz-D/2)/16)*16;gen();pos.set(gx-ox,FLATH+3,gz-oz);yaw=0;pitch=-.15;fly=false;sync();rebuild();spawnAnimals();syncChests();syncBag()}
 function newWorld(){RyleAudio.ui('world');setWeather(0);startAt(0,9,1+Math.floor(Math.random()*99999),0)}
 // the window re-centres on you when you walk near its edge; new land appears, your edits stay
 function recenter(){const nx=Math.round((ox+pos.x-W/2)/16)*16,nz=Math.round((oz+pos.z-D/2)/16)*16,dx=nx-ox,dz=nz-oz;if(!dx&&!dz)return;
@@ -154,15 +160,24 @@ function recenter(){const nx=Math.round((ox+pos.x-W/2)/16)*16,nz=Math.round((oz+
   ox=nx;oz=nz;pos.x-=dx;pos.z-=dz;gen();
   if(chunks.some(Boolean)&&Math.abs(dx)<W&&Math.abs(dz)<D&&dx%CS===0&&dz%CS===0){shiftChunks(dx,dz);rebuildEdge(dx,dz)}else rebuild();
   for(let k=A.length-1;k>=0;k--){const a=A[k];a.x-=dx;a.z-=dz;if(a!==riding&&(a.x<4||a.z<4||a.x>W-4||a.z>D-4)){killA(a,k)}}
-  spawnFish()}
+  spawnFish();syncChests()}
 function save(){
-  try{localStorage.setItem(KEY,JSON.stringify({s:SEED,f:FLAT,e:[...EDITS],p:[pos.x+ox,pos.y,pos.z+oz,yaw,pitch],x:WX,an:ANSAVE()}));toast('Saved! ✅');RyleAudio.ui('save');return true}
+  try{
+    const c=[];for(const r of CHESTS.values())c.push([r.id,r.gx,r.gz,r.y,r.rare,r.opened?1:0,r.items.map(it=>[it.i,it.k,it.m,it.r])]);
+    const w=WEAPONS.map(x=>[x.id,x.k,x.m,x.r]);
+    localStorage.setItem(KEY,JSON.stringify({s:SEED,f:FLAT,e:[...EDITS],p:[pos.x+ox,pos.y,pos.z+oz,yaw,pitch],x:WX,an:ANSAVE(),c,w,q:EQUIPID}));
+    toast('Saved! ✅');RyleAudio.ui('save');return true
+  }
   catch(e){toast('Could not save here');return false}
 }
 function hasSave(){try{return !!localStorage.getItem(KEY)}catch(e){return false}}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(KEY));if(!d||d.s==null)return false;SEED=d.s;FLAT=d.f;EDITS=new Map(d.e);
-    ox=Math.round((d.p[0]-W/2)/16)*16;oz=Math.round((d.p[2]-D/2)/16)*16;gen();pos.set(d.p[0]-ox,d.p[1],d.p[2]-oz);yaw=d.p[3];pitch=d.p[4];setWeather(d.x||0);rebuild();if(d.an&&d.an.length)restoreAnimals(d.an);else spawnAnimals();return true}catch(e){return false}
+    resetLoot();
+    if(d.c)for(const a of d.c){const r={id:a[0],gx:a[1],gz:a[2],y:a[3],rare:a[4]|0,opened:!!a[5],openT:!!a[5]?1:0,items:(a[6]||[]).map(it=>({i:it[0],k:it[1],m:it[2]|0,r:it[3]|0})),g:null,lid:null,spark:null};CHESTS.set(r.id,r)}
+    if(d.w)for(const a of d.w)WEAPONS.push({id:a[0],k:a[1],m:a[2]|0,r:a[3]|0});
+    ox=Math.round((d.p[0]-W/2)/16)*16;oz=Math.round((d.p[2]-D/2)/16)*16;gen();pos.set(d.p[0]-ox,d.p[1],d.p[2]-oz);yaw=d.p[3];pitch=d.p[4];setWeather(d.x||0);rebuild();syncChests();setEquip(d.q||'',true);syncBag();
+    if(d.an&&d.an.length)restoreAnimals(d.an);else spawnAnimals();return true}catch(e){return false}
 }
 function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1600)}
 
@@ -268,7 +283,7 @@ function stepRain(dt){if(rainA<=.01)return;const cx=cam.position.x,cy=cam.positi
     const o=k*6;rp[o]=d[0];rp[o+1]=d[1];rp[o+2]=d[2];rp[o+3]=d[0]+.15;rp[o+4]=d[1]+.8;rp[o+5]=d[2]}
   rainG.attributes.position.needsUpdate=true}
 // ---------- animals ----------
-function box(w,h,d,c,x,y,z,g){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color:c}));m.position.set(x,y,z);g.add(m)}
+function box(w,h,d,c,x,y,z,g){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color:c}));m.position.set(x,y,z);g.add(m);return m}
 function chicken(){const g=new THREE.Group();box(.4,.35,.5,0xffffff,0,.4,0,g);box(.22,.28,.22,0xffffff,0,.68,-.28,g);box(.1,.08,.14,0xffa31a,0,.66,-.43,g);box(.08,.1,.14,0xe53935,0,.86,-.28,g);box(.1,.2,.12,0xf0f0f0,0,.5,.3,g);box(.04,.04,.02,0x111111,-.07,.72,-.395,g);box(.04,.04,.02,0x111111,.07,.72,-.395,g);box(.05,.25,.05,0xffa31a,-.1,.12,0,g);box(.05,.25,.05,0xffa31a,.1,.12,0,g);return g}
 function cat(c){const g=new THREE.Group();box(.34,.3,.7,c,0,.35,0,g);box(.3,.28,.28,c,0,.55,-.42,g);box(.08,.1,.06,c,-.1,.74,-.45,g);box(.08,.1,.06,c,.1,.74,-.45,g);box(.06,.06,.02,0x111111,-.07,.58,-.565,g);box(.06,.06,.02,0x111111,.07,.58,-.565,g);box(.06,.04,.02,0xf48fb1,0,.52,-.565,g);box(.08,.08,.5,c,0,.5,.55,g);[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(q=>box(.08,.2,.08,c,q[0]*.11,.1,q[1]*.22,g));return g}
 const A=[];
@@ -287,7 +302,11 @@ function shadow(g,r){const m=new THREE.Mesh(shG,shM);m.rotation.x=-Math.PI/2;m.p
 const me=new THREE.Group();me.visible=true;scene.add(me);shadow(me,.6);
 function limb(x,y,c,w,h){const g=new THREE.Group();g.position.set(x,y,0);box(w,h,w,c,0,-h/2,0,g);me.add(g);return g}
 function limb2(x,y,parts){const g=new THREE.Group();g.position.set(x,y,0);parts.forEach(p=>box(p[0],p[1],p[2],p[3],p[4],p[5],p[6],g));me.add(g);return g}
-function leg(x,s){return limb2(x,.6,[[.26,.4,.26,0xb5702c,0,-.2,0],[.06,.14,.2,0xc98a3a,s*.15,-.2,0],[.3,.1,.3,0xdcd2c8,0,-.45,0],[.28,.08,.36,0x8a4b22,0,-.54,-.04],[.3,.04,.4,0x9a98a0,0,-.58,-.04]])}
+function leg(x,s){const g=limb2(x,.6,[[.26,.4,.26,0xb5702c,0,-.2,0],[.06,.14,.2,0xc98a3a,s*.15,-.2,0]]);
+  // knee joint so the rider can sit astride: thigh forward, shin down
+  const k=new THREE.Group();k.position.set(0,-.4,0);g.add(k);
+  box(.3,.1,.3,0xdcd2c8,0,-.05,0,k);box(.28,.08,.36,0x8a4b22,0,-.14,-.04,k);box(.3,.04,.4,0x9a98a0,0,-.18,-.04,k);
+  g.userData.knee=k;return g}
 function arm(x){return limb2(x,1.28,[[.22,.5,.22,0x1f8cf0,0,-.25,0],[.2,.16,.2,0xf6c28f,0,-.57,0]])}
 function armR(){const g=new THREE.Group();g.position.set(.36,1.28,0);
   box(.22,.28,.22,0x1f8cf0,0,-.14,0,g);
@@ -323,13 +342,50 @@ function toolModel(kind){const g=new THREE.Group();
   g.children.forEach(c=>c.position.y+=GRIP_LIFT);
   g.userData.grip=GRIP_LIFT;
   return g}
+// ---------- treasure weapons: kinds, materials, rarities and reusable low-poly models ----------
+const WMAT=[['Wood',0x9c6b3a],['Stone',0x8f949c],['Iron',0xd3d9e2],['Gold',0xf7c948],['Diamond',0x3fd9c9],['Crystal',0xa77bff]];
+const WRAR=[['Common',0x9fb0c4],['Rare',0x3fa9ff],['Epic',0xb45cff],['Legendary',0xffab2e]];
+const WKIND=['sword','axe','bow'],WKINDCAP={sword:'Sword',axe:'Axe',bow:'Bow'};
+const WPOOL=[[0,0,1],[1,1,2,3],[2,3,3,4,5],[3,4,4,4,5,5]];
+let WEAPONS=[],EQUIPID='';const CHESTS=new Map();
+function lighten(c,a){const r=(c>>16)&255,g=(c>>8)&255,b=c&255,f=v=>Math.round(v+(255-v)*a);return (f(r)<<16)|(f(g)<<8)|f(b)}
+function shash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function weaponName(w){return WMAT[w.m][0]+' '+WKINDCAP[w.k]}
+// same grip-at-the-top convention as the builder's tools, so the existing wrist
+// attachment and swing timelines work with every weapon unchanged
+function weaponModel(kind,mi){
+  const g=new THREE.Group(),c=WMAT[mi][1],hi=lighten(c,.4),grip=0x7a4a22,dark=0x4f3418;
+  if(kind==='sword'){
+    box(.11,.32,.11,grip,0,-.08,0,g);box(.15,.08,.15,dark,0,.1,0,g);
+    box(.38,.08,.13,dark,0,-.32,0,g);box(.1,.13,.16,dark,-.21,-.32,0,g);box(.1,.13,.16,dark,.21,-.32,0,g);
+    box(.17,.56,.075,c,0,-.64,0,g);box(.12,.34,.07,c,0,-1.08,0,g);box(.06,.1,.07,c,0,-1.3,0,g);
+    box(.05,.72,.082,hi,0,-.83,0,g);
+  }else if(kind==='axe'){
+    box(.11,.88,.11,grip,0,-.32,0,g);box(.15,.08,.15,dark,0,.14,0,g);box(.17,.07,.15,dark,0,-.58,0,g);
+    box(.2,.25,.14,c,.16,-.76,0,g);box(.17,.31,.12,c,.31,-.8,0,g);box(.075,.35,.1,hi,.41,-.82,0,g);
+    box(.12,.1,.12,hi,.22,-.6,0,g);
+  }else{
+    box(.1,.42,.12,grip,0,-.3,0,g);box(.15,.08,.15,dark,0,-.7,0,g);
+    let q=box(.075,.44,.075,c,.05,-.68,0,g);q.rotation.z=-.3;
+    q=box(.07,.4,.07,c,.17,-.96,0,g);q.rotation.z=-.55;
+    q=box(.075,.44,.075,c,.05,.08,0,g);q.rotation.z=.3;
+    q=box(.07,.4,.07,c,.17,.36,0,g);q.rotation.z=.55;
+    box(.02,1.3,.02,0xeef4f7,.28,-.3,0,g);
+    box(.5,.03,.03,0xe0b87a,-.22,-.3,0,g);box(.1,.07,.055,hi,-.5,-.3,0,g);
+  }
+  const GL=.18;g.children.forEach(c=>c.position.y+=GL);g.userData.grip=GL;
+  return g}
+const WMC={};
+function weaponProto(k,m){const key=k+'|'+m;return WMC[key]||(WMC[key]=weaponModel(k,m))}
 me.wristR=new THREE.Group();me.wristR.position.set(0,-.34,0);me.wristR.rotation.order='YXZ';me.wristR.rotation.x=0;me.wristR.rotation.y=-.5;me.wristR.rotation.z=.35;me.elbowR.add(me.wristR);
 me.sword=toolModel('sword');me.wristR.add(me.sword);me.sword.visible=false;
 me.pick=toolModel('pick');me.wristR.add(me.pick);me.pick.visible=false;
 me.hammer=toolModel('hammer');me.wristR.add(me.hammer);me.hammer.visible=true;
-function tools(m,force){const b=m==='build'&&!force,e=m==='erase'&&!force,s=!!force||m==='sword';me.hammer.visible=b;me.pick.visible=e;me.sword.visible=s;
+me.loot=new THREE.Group();me.wristR.add(me.loot);me.loot.visible=false;
+function tools(m,force){const b=m==='build'&&!force,e=m==='erase'&&!force,s=!!force||m==='sword',l=s&&!!EQUIPID;
+  me.hammer.visible=b;me.pick.visible=e;me.sword.visible=s&&!l;me.loot.visible=l;
   // first person holds the selected block in build mode; the third-person builder keeps the hammer
-  vm.hammer.visible=false;vm.pick.visible=e;vm.sword.visible=s;vmBlock.visible=b}
+  vm.hammer.visible=false;vm.pick.visible=e;vm.sword.visible=s&&!l;vm.loot.visible=l;vmBlock.visible=b}
 // ---- first-person hand (Minecraft style): one right hand tucked into the bottom-right corner ----
 // The forearm hangs along local -Y from an off-screen shoulder anchor, with a short cuff and fist
 // kept small so the tool stays the focus. The tool is rotated at the wrist so it runs diagonally
@@ -347,6 +403,7 @@ box(.22,.34,.22,0x1f8cf0,0,-.17,0,vmArm);box(.28,.196,.28,0xf6c28f,0,-.42,0,vmAr
 vmArm.scale.setScalar(VM_ARM_SCALE);vmR.scale.setScalar(VM_SCALE);vmR.add(vmArm);
 const vmWrist=new THREE.Group();vmWrist.position.set(0,-VM_WRIST_Y,0);vmWrist.rotation.z=VM_WRIST_Z;vmR.add(vmWrist);
 ['hammer','pick','sword'].forEach(k=>{vm[k]=me[k].clone();vm[k].visible=false;vmWrist.add(vm[k])});
+vm.loot=new THREE.Group();vm.loot.visible=false;vmWrist.add(vm.loot);
 // held block for build mode: a shaded cube riding in the same fist, facing the camera at a corner
 const vmBlock=new THREE.Group();vmBlock.visible=false;
 const vmBlockMesh=new THREE.Mesh(new THREE.BoxGeometry(.42,.42,.42),[null,null,null,null,null,null]);
@@ -445,7 +502,7 @@ function stepVM(dt){
   const walk=!fly&&!riding&&mvg?1:0;
   vt+=dt*9*(walk?1:swimming?.45:0);
   // Pin the fist to the bottom-right corner for the current aspect and view-model FOV.
-  // Portrait screens get a smaller rig so the diagonal tool cannot reach the crosshair.
+  // Portrait screens get a smaller rig so the diagonal tool cannot cover the aiming point.
   const t=Math.tan(vmCam.fov*Math.PI/360),hh=t*VM_DEPTH,hw=hh*vmCam.aspect;
   const k=Math.min(1,Math.max(.6,Math.pow(cam.aspect/VM_REF_ASPECT,.35)));
   const sw=Math.pow(k,3);
@@ -471,10 +528,22 @@ box(.2,.07,.02,0x7a1f1f,0,1.42,-.255,me);box(.16,.025,.02,0xffffff,0,1.455,-.265
 box(.54,.14,.54,0x8a4a22,0,1.82,0,me);box(.54,.35,.08,0x8a4a22,0,1.6,.27,me);box(.54,.1,.1,0x8a4a22,0,1.77,-.22,me);
 box(.12,.1,.08,0x6a3818,-.18,1.73,-.27,me);box(.12,.1,.08,0x6a3818,.02,1.72,-.27,me);box(.12,.1,.08,0x6a3818,.18,1.73,-.27,me);
 box(.14,.14,.14,0x6a3818,-.16,1.94,.05,me);box(.14,.12,.14,0x6a3818,.1,1.93,-.05,me);box(.12,.14,.12,0x6a3818,0,1.98,.1,me);box(.56,.05,.56,0x8a8a92,0,1.86,0,me);
-function stepMe(dt){if(!third)return;me.position.set(pos.x,pos.y-EYE+(riding?(riding.rh||1.25)-.6:0),pos.z);
+function stepMe(dt){if(!third)return;
+  // the rider sits on the saddle at the middle of the horse's back
+  me.position.set(pos.x,pos.y-EYE+rideLift(),pos.z);
   const d=Math.atan2(Math.sin(ph-me.rotation.y),Math.cos(ph-me.rotation.y));me.rotation.y+=d*Math.min(1,dt*12);
   const mm=(riding||fly)?0:mvg;pt+=dt*9*mm;sw+=((mm?Math.sin(pt)*.7:0)-sw)*Math.min(1,dt*14);
-  me.legL.rotation.x=sw;me.legR.rotation.x=-sw;if(riding)me.legL.rotation.x=me.legR.rotation.x=-1.3;me.armL.rotation.x=-sw;me.armR.rotation.x=sw;
+  me.legL.rotation.x=sw;me.legR.rotation.x=-sw;
+  if(riding){
+    // sit astride: thighs forward along the saddle, shins hanging down the sides
+    me.legL.rotation.x=me.legR.rotation.x=1.05;
+    me.legL.rotation.z=-.34;me.legR.rotation.z=.34;
+    me.legL.userData.knee.rotation.x=me.legR.userData.knee.rotation.x=-1.05;
+  }else{
+    me.legL.rotation.z=me.legR.rotation.z=0;
+    me.legL.userData.knee.rotation.x=me.legR.userData.knee.rotation.x=0;
+  }
+  me.armL.rotation.x=-sw;me.armR.rotation.x=sw;
   me.armR.rotation.x=(anim?0:sw)+pose.shX;me.armR.rotation.z=.3+pose.shZ;
   me.elbowR.rotation.x=ELBOW_REST+pose.elX;me.wristR.rotation.x=WRIST_X_REST+pose.wrX;me.wristR.rotation.y=WRIST_Y+pose.wrY;
   swimPose(dt)}
@@ -490,7 +559,7 @@ function swimPose(dt){const on=swimming&&!riding?1:0;sk+=(on-sk)*Math.min(1,dt*6
 const VCM=new THREE.MeshBasicMaterial({vertexColors:true}),FLM=new THREE.MeshBasicMaterial({vertexColors:true,color:0xff8a8a});
 function rng(s){let a=(s^0x9e3779b9)>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function ch(R,a){return a[Math.floor(R()*a.length)]}
-const HQ={ty:'q',nk:0,sz:[.9,1.1],hp:4,gr:1},HO={...HQ,L:1.3,W:.5,B:.6,lg:.6,lw:.17,hs:.3,nk:.45,sn:.32,ear:'pt',tail:'long',spd:1.1,hp:99,ride:1,saddle:1,mane:1,gr:1};
+const HQ={ty:'q',nk:0,sz:[.9,1.1],hp:4,gr:1},HO={...HQ,L:1.8,W:.72,B:.68,lg:.72,lw:.2,hs:.34,nk:.45,sn:.34,ear:'pt',tail:'long',spd:1.1,hp:99,ride:1,saddle:1,mane:1,gr:1};
 const SP={
 horse:HO,
 cow:{...HQ,L:1,W:.55,B:.55,lg:.45,lw:.15,hs:.34,sn:.14,ear:'fl',tail:'rope',horn:'sm',spd:.7,hp:5},
@@ -515,6 +584,9 @@ icewolf:{...HQ,L:.9,W:.32,B:.38,lg:.44,lw:.1,hs:.27,sn:.2,ear:'pt',tail:'fluffy'
 firedeer:{...HQ,L:.95,W:.36,B:.44,lg:.62,lw:.1,hs:.23,nk:.38,sn:.2,ear:'pt',tail:'tuft',antler:1,flame:1,fan:1,spd:1.3,hp:5}
 };
 const RIDE={horse:1,unicorn:1,pegasus:1},ACT=28;
+// third-person riding camera: back off, rise a little and tilt down so the whole
+// mount sits in frame above the toolbar instead of being hidden by the rider
+const RIDE_CAM={d:5.4,up:1.05,tilt:-.22,eye:.68};
 const PAL={
 horse:[[0x8b5a2b,0x2b1a10],[0xa0522d,0x3a1a0a],[0x2b2b2b,0x111111],[0xf2f2f2,0xb8b8b8],[0xd4a846,0xf4e2b0],[0x9a9a9a,0x555555]],
 cow:[[0xf5f5f5,0x222222],[0x8b5a2b,0xf5f5f5],[0x222222,0xf5f5f5],[0xd8b080,0x8b5a2b]],
@@ -636,7 +708,7 @@ function stepAnimals(dt){const px=pos.x,pz=pos.z;
     if(Math.random()<.1){const s=waterSpot(px+Math.cos(ang)*dd,pz+Math.sin(ang)*dd);if(s)addAnimal(s[0],s[1],Math.random()<.12?'crystalturtle':'turtle',null,0)}
     else{const s=spot(px+Math.cos(ang)*dd,pz+Math.sin(ang)*dd,4);if(s)spawnAt(s)}}}
   for(let k=A.length-1;k>=0;k--){const a=A[k],S=SP[a.kind];
-    if(a===riding){a.x=px;a.z=pz;a.h=ph;a.y=pos.y-EYE;a.st=mvg?'run':'idle';a.g.visible=true;a.g.position.set(px,a.y,pz);a.g.rotation.y=ph;animA(a,dt);continue}
+    if(a===riding){a.x=px;a.z=pz;a.h=ph;a.y=pos.y-EYE;a.st=mvg?'run':'idle';a.g.visible=true;a.g.position.set(a.x,a.y,a.z);a.g.rotation.y=ph;animA(a,dt);continue}
     const dx=a.x-px,dz=a.z-pz,d2=dx*dx+dz*dz;
     if(d2>5200&&A.length>ACT-6){killA(a,k);continue}
     a.g.visible=d2<2300;if(!a.g.visible)continue;
@@ -665,7 +737,7 @@ function tryMount(cx,cy){const hl2=A.filter(a=>RIDE[a.kind]&&a.g.visible);if(!hl
   const h=rc2.intersectObjects(hl2.map(a=>a.g),true);if(!h.length)return false;let o=h[0].object;while(o&&!o.userData.a)o=o.parent;if(!o)return false;const a=o.userData.a;
   if(Math.hypot(a.x-pos.x,a.z-pos.z)>6){toast('Walk closer to the horse 🐴');return true}
   riding=a;a.mv=0;fly=false;sync();document.getElementById('dm').classList.remove('hide');toast('Giddy up! 🐴');RyleAudio.animal(a.kind,a.x,a.y+.6,a.z,false);return true}
-function mountNear(){let best=null,bd=25;for(const a of A)if(RIDE[a.kind]){const d=(a.x-pos.x)**2+(a.z-pos.z)**2;if(d<bd){bd=d;best=a}}if(!best)return;riding=best;best.mv=0;fly=false;sync();toast('Giddy up! 🐴');RyleAudio.animal(best.kind,best.x,best.y+.6,best.z,false)}
+function mountNear(){let best=null,bd=25;for(const a of A)if(RIDE[a.kind]){const d=(a.x-pos.x)**2+(a.z-pos.z)**2;if(d<bd){bd=d;best=a}}if(!best){toast('No animal nearby 🐴');return false}riding=best;best.mv=0;fly=false;sync();toast('Giddy up! 🐴');RyleAudio.animal(best.kind,best.x,best.y+.6,best.z,false);return true}
 let mst='';
 function updMount(){let s='';if(riding)s='off';else for(const a of A)if(RIDE[a.kind]&&(a.x-pos.x)**2+(a.z-pos.z)**2<20){s='on';break}
   if(s!==mst){mst=s;const b=document.getElementById('dm');b.classList.toggle('hide',!s);b.innerHTML=s==='off'?'🚶<small>Get off</small>':'🐴<small>Mount</small>'}}
@@ -694,9 +766,26 @@ function pick(cx,cy){
 const pg=new THREE.BoxGeometry(.2,.2,.2),pm={},parts=[];
 function burst(x,y,z,id){const m=pm[id]||(pm[id]=new THREE.MeshBasicMaterial({color:BL[id-1][1]}));for(let k=0;k<10;k++){const q=new THREE.Mesh(pg,m);q.position.set(x+.2+Math.random()*.6,y+.2+Math.random()*.6,z+.2+Math.random()*.6);q.v=new THREE.Vector3(Math.random()-.5,Math.random()*3+1,Math.random()-.5).multiplyScalar(1.5);q.life=.8;scene.add(q);parts.push(q)}}
 function flash(c){hl.position.set(c[0]+.5,c[1]+.5,c[2]+.5);hl.visible=true;clearTimeout(hlT);hlT=setTimeout(()=>hl.visible=false,450)}
+// Minecraft-style reach: build/mine only the blocks close to the player, measured
+// from the eyes so third person works the same as first person.
+const REACH=5;
+// the rider's eye sits on the saddle, not at standing height
+function rideLift(){return riding?((riding.rh||1.25)-.6):0}
+// first person sits a little lower than the avatar's head so the mount's neck
+// and ears fill the lower view, Minecraft style
+function rideEye(){return rideLift()*RIDE_CAM.eye}
+function reachDist(h){
+  // pos.y is the player's eye height, so this matches the Minecraft reach sphere.
+  const ex=pos.x,ey=pos.y+rideEye(),ez=pos.z;
+  return Math.hypot(
+    Math.max(h[0]-ex,0,ex-(h[0]+1)),
+    Math.max(h[1]-ey,0,ey-(h[1]+1)),
+    Math.max(h[2]-ez,0,ez-(h[2]+1)));
+}
 function captureTap(cx,cy){
   if(mode==='sword'){const a=captureSword(cx,cy);return a?()=>applySword(a):null}
   const r=pick(cx,cy);if(!r)return null;
+  if(reachDist(r.hit)>REACH){toast(mode==='erase'?'Walk closer to mine ⛏️':'Walk closer to build 🔨');return null}
   if(mode==='erase'){const[x,y,z]=r.hit;return()=>applyErase(x,y,z)}
   const g=get(r.hit[0],r.hit[1],r.hit[2]);
   const t=(g>=16&&g<=22)?r.hit:r.prev;if(!t)return null;
@@ -727,11 +816,54 @@ function applySword(a){
   if(!a||!a.g.visible)return;
   if(Math.hypot(a.x-pos.x,a.z-pos.z)>6){toast('Move closer!');return}hitA(a);RyleAudio.toolImpact('sword',3);
 }
-function tap(cx,cy){if(!riding&&tryMount(cx,cy))return;startSwing(MODE_TOOL[mode],captureTap(cx,cy))}
+function tap(cx,cy){if(!riding&&tryMount(cx,cy))return;if(tryChest(cx,cy))return;startSwing(MODE_TOOL[mode],captureTap(cx,cy))}
 
 // ---------- input ----------
 let jcv=null,jo=[0,0],jact=false,jt=0;const ptrs=new Map();let tapOK=false,t0=0,mv=0,pd=0;
-cv.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'&&e.clientX<innerWidth*.45&&jcv===null){cv.setPointerCapture(e.pointerId);jcv=e.pointerId;jo=[e.clientX,e.clientY];jt=performance.now();jact=false;closePal();return}cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);
+// ---------- PC mouse look (pointer lock, Minecraft style) ----------
+let mLock=false,lockFailed=false,lockHinted=false,unlockHinted=false;
+const MOUSE_SENS=.0024;
+// the sword is the only mode without a block outline, so it gets a small + cap
+let xhOn=false;
+function syncCrosshair(){
+  const on=mLock&&mode==='sword'&&!$('hud').classList.contains('hide');
+  if(on===xhOn)return;
+  xhOn=on;
+  document.getElementById('xh').classList.toggle('hide',!on);
+}
+function unlockMouse(){if(document.pointerLockElement&&document.exitPointerLock)document.exitPointerLock()}
+let lockFromKey=false;
+function tryLock(fromKey){
+  if(mLock||lockFailed||!cv.requestPointerLock)return false;
+  lockFromKey=!!fromKey;
+  try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{if(!lockFromKey)lockFailed=true;lockFromKey=false});return true}
+  catch(e){if(!lockFromKey)lockFailed=true;lockFromKey=false;return false}
+}
+document.addEventListener('mousemove',e=>{
+  if(!mLock)return;
+  yaw-=e.movementX*MOUSE_SENS;
+  pitch=Math.max(-1.5,Math.min(1.5,pitch-e.movementY*MOUSE_SENS));
+});
+document.addEventListener('pointerlockchange',()=>{
+  const on=document.pointerLockElement===cv;
+  if(on===mLock)return;
+  mLock=on;tapOK=false;ptrs.clear();
+  if(on){if(!lockHinted){lockHinted=true;toast('Mouse look on · Esc or Ctrl frees the mouse 🖱️')}}
+  else if(!unlockHinted&&$('m').classList.contains('hide')&&pal.classList.contains('hide')){
+    unlockHinted=true;toast('Mouse released · click the world or press Ctrl to look again 🖱️');
+  }
+});
+document.addEventListener('pointerlockerror',()=>{
+  if(!lockFromKey){lockFailed=true;toast('Mouse look is not available here — drag to look 🖱️')}
+  lockFromKey=false;
+});
+cv.addEventListener('pointerdown',e=>{
+  if(mLock){if(e.button===0)tap(innerWidth/2,innerHeight/2);e.preventDefault();return}
+  if(e.pointerType==='mouse'&&e.button===0){
+    if(!pal.classList.contains('hide')){closePal();e.preventDefault();return}
+    if(tryLock()){e.preventDefault();return}
+  }
+  if(e.pointerType==='touch'&&e.clientX<innerWidth*.45&&jcv===null){cv.setPointerCapture(e.pointerId);jcv=e.pointerId;jo=[e.clientX,e.clientY];jt=performance.now();jact=false;closePal();return}cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===1){tapOK=true;t0=performance.now();mv=0}else{tapOK=false;const a=[...ptrs.values()];pd=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1])}
   closePal()});
 cv.addEventListener('pointermove',e=>{
@@ -741,7 +873,7 @@ cv.addEventListener('pointermove',e=>{
   if(ptrs.size===1){mv+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.005;pitch=Math.max(-1.5,Math.min(1.5,pitch-dy*.005))}
   else if(ptrs.size===2){const a=[...ptrs.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);cam.fov=Math.max(40,Math.min(95,cam.fov-(d-pd)*.1));pd=d;cam.updateProjectionMatrix()}
 });
-function up(e){if(e.pointerId===jcv){const was=jact;jcv=null;jact=false;jx=jy=0;knob.style.transform='';joy.style.left=joy.style.top=joy.style.bottom='';if(!was&&ptrs.size===0&&performance.now()-jt<400)tap(e.clientX,e.clientY);return}
+function up(e){if(mLock)return;if(e.pointerId===jcv){const was=jact;jcv=null;jact=false;jx=jy=0;knob.style.transform='';joy.style.left=joy.style.top=joy.style.bottom='';if(!was&&ptrs.size===0&&performance.now()-jt<400)tap(e.clientX,e.clientY);return}
   const had=ptrs.delete(e.pointerId);
   if(had&&tapOK&&ptrs.size===0&&mv<12&&performance.now()-t0<400)tap(e.clientX,e.clientY);
   if(ptrs.size===0)tapOK=false}
@@ -759,6 +891,55 @@ const jend=e=>{if(e.pointerId===jid){jid=null;jx=jy=0;knob.style.transform=''}};
 joy.addEventListener('pointerup',jend);joy.addEventListener('pointercancel',jend);
 // keyboard (desktop testing)
 const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1});addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0});
+// PC shortcuts. They stay quiet on the home screen, in menus and while typing.
+let ctrlTap=false;
+addEventListener('keydown',e=>{
+  const tag=(e.target&&e.target.tagName)||'';
+  if(tag==='INPUT'||tag==='TEXTAREA'||(e.target&&e.target.isContentEditable))return;
+  // Ctrl on its own frees the mouse (and grabs it again); Ctrl+S and Ctrl+click
+  // still work because any other key during the hold cancels the tap.
+  if(e.key==='Control'){if(!e.repeat)ctrlTap=true;return}
+  if(ctrlTap)ctrlTap=false;
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&String(e.key).toLowerCase()==='s'){
+    if(!$('hud').classList.contains('hide')&&$('m').classList.contains('hide')){e.preventDefault();save()}
+    return;
+  }
+  if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.key==='Enter'){
+    if(!$('hud').classList.contains('hide')&&$('m').classList.contains('hide')){e.preventDefault();toggleFull()}
+    return;
+  }
+  if(e.key==='Escape'){
+    if(!$('m').classList.contains('hide')){close();e.preventDefault();return}
+    if(!pal.classList.contains('hide')){closePal();e.preventDefault();return}
+    unlockMouse();
+    return;
+  }
+  if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.shiftKey)return;
+  if($('hud').classList.contains('hide')||!$('m').classList.contains('hide'))return;
+  const k=e.key.toLowerCase();
+  if(k==='1'){setMode('build');closePal()}
+  else if(k==='2'){setMode('erase');closePal()}
+  else if(k==='3'){setMode('sword');closePal()}
+  else if(k==='b'){unlockMouse();pal.classList.toggle('hide')}
+  else if(k==='g'){unlockMouse();openBag()}
+  else if(k==='f'){fly=!fly;sync();toast(fly?'Flying ✈️':'Walking 🚶')}
+  else if(k==='v'){third=!third;me.visible=third;document.getElementById('vw').textContent=third?'🧍':'👁️'}
+  else if(k==='r'){riding?dismount():mountNear()}
+  else if(k==='m'){document.getElementById('bMusic').onclick()}
+  else if(k==='t'){document.getElementById('wx').onclick()}
+  else if(k==='h'){unlockMouse();goHome()}
+  else return;
+  e.preventDefault();
+});
+addEventListener('keyup',e=>{
+  if(e.key!=='Control'||!ctrlTap)return;
+  ctrlTap=false;
+  if($('hud').classList.contains('hide')||!$('m').classList.contains('hide')||!pal.classList.contains('hide'))return;
+  if(mLock)unlockMouse();else tryLock(true);
+});
+if(/Mac|iPhone|iPad|iPod/.test(navigator.platform||navigator.userAgent)){
+  const sk=document.getElementById('tSaveK');if(sk)sk.textContent='⌘S';
+}
 // up/down
 function hold(id,v){const b=document.getElementById(id);b.addEventListener('pointerdown',e=>{b.setPointerCapture(e.pointerId);vy=v});const s=()=>vy=0;b.addEventListener('pointerup',s);b.addEventListener('pointercancel',s)}
 hold('up',1);hold('dn',-1);
@@ -776,17 +957,45 @@ BL.forEach((b,i)=>{if(i===12||i===22)return;const d=document.createElement('butt
 function swatch(){$('cur').style.background='url('+tu(cur-1)+') center/cover';$('cur').style.imageRendering='pixelated';[...pal.children].forEach(c=>c.classList.toggle('sel',+c.dataset.id===cur));updateHeldBlock()}
 function closePal(){pal.classList.add('hide')}
 function setMode(m){cancelSwing();mode=m;$('tP').classList.toggle('on',m==='build');$('tE').classList.toggle('on',m==='erase');$('tE').classList.toggle('e',m==='erase');$('tW').classList.toggle('on',m==='sword');tools(m);actionBtn(m)}
-function actionBtn(m){const b=document.getElementById('sw'),x=m==='sword'?['🗡️','Attack','linear-gradient(#ff7a7e,#e5303a)','#a52a2e']:m==='erase'?['⛏️','Mine','linear-gradient(#9fb4d4,#566f94)','#475366']:['🔨','Build','linear-gradient(#ffc15a,#ff7a0d)','#c4631b'];b.innerHTML=x[0]+'<small>'+x[1]+'</small>';b.style.background=x[2];b.style.boxShadow='0 4px 0 '+x[3];document.getElementById('xh').classList.add('hide');b.classList.toggle('hide',m!=='sword')}
+function actionBtn(m){const b=document.getElementById('sw'),x=m==='sword'?['🗡️','Attack','linear-gradient(#ff7a7e,#e5303a)','#a52a2e']:m==='erase'?['⛏️','Mine','linear-gradient(#9fb4d4,#566f94)','#475366']:['🔨','Build','linear-gradient(#ffc15a,#ff7a0d)','#c4631b'];b.innerHTML=x[0]+'<small>'+x[1]+'</small>';b.style.background=x[2];b.style.boxShadow='0 4px 0 '+x[3];b.classList.toggle('hide',m!=='sword')}
 let trkT=0;
-function trk(dt){return;trkT-=dt;if(trkT>0||document.getElementById('hud').classList.contains('hide'))return;trkT=.1;if(mode==='sword'){hl.visible=false;return}
-  const r=pick(innerWidth/2,innerHeight/2);if(!r){hl.visible=false;return}const g=get(r.hit[0],r.hit[1],r.hit[2]),t=mode==='erase'?r.hit:((g>=16&&g<=22)?r.hit:(r.prev||r.hit));hl.position.set(t[0]+.5,t[1]+.5,t[2]+.5);hl.visible=true}
+// a chest at the centre of the screen is a tap target, not a block, so skip the guide
+function chestUnderAim(r){
+  const list=[];
+  for(const c of CHESTS.values()){
+    if(!c.g||!c.g.parent)continue;
+    if(Math.hypot(c.gx+.5-(pos.x+ox),c.gz+.5-(pos.z+oz))>6)continue;
+    list.push(c.g);
+  }
+  if(!list.length)return false;
+  rc2.setFromCamera({x:0,y:0},cam);
+  const hits=rc2.intersectObjects(list,true);if(!hits.length)return false;
+  return !(r&&Math.hypot(r.hit[0]+.5-cam.position.x,r.hit[1]+.5-cam.position.y,r.hit[2]+.5-cam.position.z)<hits[0].distance);
+}
+function trk(dt){
+  if(!mLock||mode==='sword'||document.getElementById('hud').classList.contains('hide')){aim.visible=false;return}
+  trkT-=dt;if(trkT>0)return;trkT=.05;
+  const r=pick(innerWidth/2,innerHeight/2);if(!r){aim.visible=false;return}
+  if(chestUnderAim(r)){aim.visible=false;return}
+  const g=get(r.hit[0],r.hit[1],r.hit[2]);
+  // mine outlines the block itself; build outlines the cell the block will fill
+  const t=mode==='erase'?r.hit:((g>=16&&g<=22)?r.hit:r.prev);
+  if(!t){aim.visible=false;return}
+  const near=reachDist(r.hit)<=REACH;
+  aim.position.set(t[0]+.5,t[1]+.5,t[2]+.5);
+  aimW.material.color.setHex(near?0xffffff:0xff5a3c);
+  aimD.material.color.setHex(near?0x0d1b2a:0xfff3e8);
+  // Minecraft-style outline: nearby blocks and tools hide the back edges
+  aimW.material.depthTest=aimD.material.depthTest=true;
+  aim.visible=true;
+}
 $('tB').onclick=()=>pal.classList.toggle('hide');
 $('tP').onclick=()=>{setMode('build');closePal()};
 $('tE').onclick=()=>{setMode('erase');closePal()};
 $('tW').onclick=()=>{setMode('sword');closePal()};
 $('tF').onclick=()=>{fly=!fly;sync();closePal()};
 $('tS').onclick=()=>{save();closePal()};
-function modal(html,fn){const m=$('m');m.classList.remove('about-open');m.innerHTML='<div class="card">'+html+'</div>';m.classList.remove('hide');fn&&fn(m)}
+function modal(html,fn){unlockMouse();const m=$('m');m.classList.remove('about-open');m.innerHTML='<div class="card">'+html+'</div>';m.classList.remove('hide');fn&&fn(m)}
 function close(){$('m').classList.add('hide')}
 function aboutModal(){
   modal(`<div class="ab-banner"><span class="ab-leaf">🍃</span><span class="ab-i">i</span>About the Game<span class="ab-leaf right">🍃</span></div>
@@ -850,9 +1059,13 @@ function howToPlayModal(){
     </div>
     <div class="hp-grid">
       <div class="hp-item"><span class="hp-ic">👆</span><div><b>Move</b><small>Drag the left side of the screen. On a computer, use WASD or the arrow keys.</small></div></div>
-      <div class="hp-item"><span class="hp-ic">🖐️</span><div><b>Look Around</b><small>Drag the right side to look. Pinch or scroll to zoom; Q and E turn.</small></div></div>
-      <div class="hp-item"><span class="hp-ic">🔨</span><div><b>Build &amp; Mine</b><small>Tap to place blocks. Switch to ⛏️ Mine to dig, or ⚔️ Sword to bop.</small></div></div>
-      <div class="hp-item"><span class="hp-ic">🕊️</span><div><b>Fly &amp; Save</b><small>Tap 🕊️ to fly anywhere, and 💾 to save your world.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">🖐️</span><div><b>Look Around</b><small>Drag the right side to look. On a computer, click the world once to grab the mouse, then just move it. Esc or Ctrl lets go — Ctrl grabs it again.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">⌨️</span><div><b>PC Shortcuts</b><small>1 Build · 2 Mine · 3 Sword · B Blocks · G Bag · F Fly · V View · R Ride · Ctrl Mouse · M Music · T Weather · H Home · Alt+↵ Fullscreen · Ctrl/⌘S Save. Left-click uses your tool at the centre of the screen.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">🔨</span><div><b>Build &amp; Mine</b><small>Tap nearby blocks to place or dig. The small white box shows the block you will change (red when too far). In third person the camera sits over the shoulder so your tool lines up with the centre of the screen.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">👣</span><div><b>Reach</b><small>You can only build or mine blocks a few steps away — walk closer when the box turns red.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">🎁</span><div><b>Treasure</b><small>Walk up to a chest and tap it to find swords, axes and bows.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">🐴</span><div><b>Ride</b><small>Walk up to a horse, unicorn or pegasus and press R to hop on; press R again to get off. On touch screens tap the 🐴 button. In first person you ride up on the saddle and see your animal's neck and head in front of you; in third person the camera backs off so the whole mount is in frame.</small></div></div>
+      <div class="hp-item"><span class="hp-ic">🕊️</span><div><b>Fly, Bag &amp; Save</b><small>Tap 🕊️ to fly, 🎒 to equip weapons, and 💾 to save.</small></div></div>
     </div>
     <button class="big hp-ok" id="o">Got it!</button>
   </div>`,m=>{
@@ -864,8 +1077,14 @@ function howToPlayModal(){
   });
 }
 let swallowHomeClick=false;
-function enter(){$('home').classList.add('hide');$('hud').classList.remove('hide');swatch();setMode('build');sync()}
-function goHome(){if(!$('hud').classList.contains('hide'))save();$('hud').classList.add('hide');$('home').classList.remove('hide');swallowHomeClick=true;playSub()}
+function enter(){
+  $('home').classList.add('hide');$('hud').classList.remove('hide');swatch();setMode('build');sync();
+  // Desktop players grab the mouse with their first click, so say so once.
+  if(!MOBILE&&!lockFailed)setTimeout(()=>{
+    if(!$('hud').classList.contains('hide')&&!document.pointerLockElement&&!$('toast').classList.contains('show'))toast('Click the world to look with the mouse 🖱️');
+  },650);
+}
+function goHome(){unlockMouse();if(!$('hud').classList.contains('hide'))save();$('hud').classList.add('hide');$('home').classList.remove('hide');swallowHomeClick=true;playSub()}
 $('bNew').onclick=()=>{
   if(hasSave())modal('<h2>Start a new world?</h2><p>Your saved world will be replaced.</p><div class="row"><button class="big soft" id="n">Keep it</button><button class="big" id="y">New world</button></div>',m=>{
     m.querySelector('#n').onclick=close;m.querySelector('#y').onclick=()=>{close();try{localStorage.removeItem(KEY)}catch(e){}newWorld();enter()}});
@@ -1008,6 +1227,227 @@ function ask(fn){if(hasSave())modal('<h2>Start a new world?</h2><p>Your saved wo
 function flatWorld(){setWeather(0);startAt(0,9,1,1)}
 let NAME='';
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ================= treasure chests & weapon bag (V1) =================
+const CHEST_RARITY=['Common','Rare','Epic','Legendary'];
+const CHEST_COL=[[0x9a6535,0x6b4423,0xf2d38a],[0x3f7fd6,0x1f4f9c,0xbfe0ff],[0x8b4fd8,0x4f2a8a,0xe8d7ff],[0xd9a521,0x8a5a0c,0xfff0b0]];
+const FIXED_HOUSES=[[-12,-11],[8,-11]];
+function resetLoot(){
+  for(const r of CHESTS.values())if(r.g&&r.g.parent)scene.remove(r.g);
+  CHESTS.clear();WEAPONS.length=0;EQUIPID='';setEquip('',true);
+}
+// One stable chest chance per 24x24 world cell. Only cells that fall inside the
+// live window are ever built, so the world stays light on a phone.
+function chestSpawn(ci,cj){
+  if(hs(ci,cj,SEED+91)>=.34)return null;
+  const gx=ci*24+4+Math.floor(hs(ci,cj,SEED+92)*16),gz=cj*24+4+Math.floor(hs(ci,cj,SEED+93)*16);
+  const r=hs(ci,cj,SEED+94);
+  return {id:'c'+ci+'_'+cj,gx,gz,rare:r<.55?0:r<.82?1:r<.95?2:3};
+}
+function nearHouse(gx,gz){
+  for(const [hx,hz] of FIXED_HOUSES)if(gx>=hx-2&&gx<=hx+6&&gz>=hz-2&&gz<=hz+6)return true;
+  const ca=Math.floor(gx/48),cb=Math.floor(gz/48);
+  for(let a=ca-1;a<=ca+1;a++)for(let b=cb-1;b<=cb+1;b++){
+    if(hs(a,b,SEED+21)>=.5)continue;
+    const x=a*48+4+Math.floor(hs(a,b,SEED+22)*38),z=b*48+4+Math.floor(hs(a,b,SEED+23)*38);
+    if(Math.max(Math.abs(x),Math.abs(z))<24)continue;
+    if(gx>=x-2&&gx<=x+6&&gz>=z-2&&gz<=z+6)return true;
+  }
+  return false;
+}
+// A chest must sit on clear, flat, dry ground with two blocks of headroom.
+function validChest(gx,gz){
+  const x=gx-ox,z=gz-oz;
+  if(x<2||z<2||x>=W-2||z>=D-2)return 0;
+  if(nearHouse(gx,gz))return 0;
+  const y=ground(x,z);
+  if(y<=SEA+1||y>=H-3)return 0;
+  const top=get(x,y-1,z);
+  if(!top||top===7||top===13||top===4)return 0;
+  if(get(x,y,z)||get(x,y+1,z))return 0;
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const yy=ground(x+dx,z+dz);
+    if(Math.abs(yy-y)>1)return 0;
+    if(get(x+dx,yy-1,z+dz)===13)return 0;
+  }
+  return y;
+}
+// chest bodies are built once per rarity and cloned, so a whole window of
+// chests shares the same geometry and materials on low-end phones
+const CHEST_PROTO={};
+function chestProto(rare){
+  if(CHEST_PROTO[rare])return CHEST_PROTO[rare];
+  const c=CHEST_COL[rare]||CHEST_COL[0],g=new THREE.Group();
+  shadow(g,.52);
+  box(.82,.5,.62,c[0],0,.27,0,g);
+  box(.86,.08,.66,c[1],0,.07,0,g);
+  box(.08,.46,.64,c[1],-.37,.29,0,g);
+  box(.08,.46,.64,c[1],.37,.29,0,g);
+  box(.16,.14,.05,c[2],0,.36,.32,g);
+  box(.07,.12,.06,0x3b2a12,0,.3,.34,g);
+  const lid=new THREE.Group();lid.position.set(0,.53,-.31);lid.userData.lid=1;g.add(lid);
+  box(.84,.2,.64,c[0],0,.1,.32,lid);
+  box(.88,.07,.66,c[1],0,.22,.32,lid);
+  box(.15,.1,.07,c[2],0,.05,.66,lid);
+  if(rare>0){
+    const sp=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.12),new THREE.MeshBasicMaterial({color:c[2]}));
+    sp.position.set(0,1.08,0);sp.rotation.set(.4,.6,0);sp.userData.spark=1;g.add(sp);
+  }
+  CHEST_PROTO[rare]=g;return g;
+}
+function makeChestGroup(rec){
+  if(rec.g)return;
+  const g=chestProto(rec.rare).clone();
+  g.position.set(rec.gx-ox+.5,rec.y,rec.gz-oz+.5);
+  g.rotation.y=(shash(rec.id)%4)*Math.PI/2;
+  g.userData.chest=rec;
+  let lid=null,sp=null;
+  g.traverse(o=>{if(o.userData.lid)lid=o;if(o.userData.spark)sp=o});
+  rec.g=g;rec.lid=lid;rec.spark=sp;
+  if(rec.openT&&lid)lid.rotation.x=-1.12*rec.openT*rec.openT*(3-2*rec.openT);
+}
+function syncChests(){
+  for(const r of CHESTS.values()){
+    const x=r.gx-ox,z=r.gz-oz;
+    if(x<1||z<1||x>=W-1||z>=D-1){if(r.g&&r.g.parent)scene.remove(r.g);continue}
+    if(!r.g)makeChestGroup(r);
+    if(!r.g.parent)scene.add(r.g);
+    r.g.position.set(x+.5,r.y,z+.5);
+  }
+  const c0=Math.floor((ox-12)/24),c1=Math.floor((ox+W+12)/24),d0=Math.floor((oz-12)/24),d1=Math.floor((oz+D+12)/24);
+  for(let ci=c0;ci<=c1;ci++)for(let cj=d0;cj<=d1;cj++){
+    const s=chestSpawn(ci,cj);if(!s||CHESTS.has(s.id)||CHESTS.size>=30)continue;
+    let rec=s,y=validChest(s.gx,s.gz);
+    // the first pick in a cell may land on a slope or a flower; try a few
+    // more spots inside the same cell before giving up on this cell
+    for(let k=1;k<4&&!y;k++){
+      const gx=ci*24+2+Math.floor(hs(ci,cj,SEED+102+k*3)*20);
+      const gz=cj*24+2+Math.floor(hs(ci,cj,SEED+103+k*3)*20);
+      const yy=validChest(gx,gz);
+      if(yy){rec={...s,gx,gz};y=yy}
+    }
+    if(!y)continue;
+    const chest={id:rec.id,gx:rec.gx,gz:rec.gz,rare:rec.rare,y,opened:false,openT:0,items:[],g:null,lid:null,spark:null};
+    CHESTS.set(chest.id,chest);makeChestGroup(chest);scene.add(chest.g);
+  }
+}
+function stepChests(dt){
+  const px=pos.x+ox,pz=pos.z+oz;
+  for(const r of CHESTS.values()){
+    if(!r.g||!r.g.parent)continue;
+    const dx=r.gx+.5-px,dz=r.gz+.5-pz;
+    r.g.visible=dx*dx+dz*dz<70*70;
+    if(!r.g.visible)continue;
+    const target=r.opened?1:0;
+    if(r.openT!==target)r.openT=target>r.openT?Math.min(target,r.openT+dt*4):Math.max(target,r.openT-dt*4);
+    const e=r.openT*r.openT*(3-2*r.openT);
+    if(r.lid)r.lid.rotation.x=-1.12*e;
+    if(r.spark){r.spark.rotation.y+=dt*2.2;r.spark.rotation.x+=dt*.8;r.spark.position.y=1.04+Math.sin(performance.now()*.0025+r.gx)*.06}
+  }
+}
+function rollLoot(rec){
+  const R=rng((SEED^shash(rec.id))>>>0),kd=['sword','sword','sword','axe','axe','bow','bow'];
+  const n=rec.rare===0?(1+(R()<.5?1:0)):rec.rare===1?2:rec.rare===2?(2+(R()<.55?1:0)):3,items=[];
+  for(let i=0;i<n;i++){
+    let r=rec.rare;if(r<3&&R()<.16)r++;
+    const k=kd[Math.floor(R()*kd.length)],pool=WPOOL[r];
+    items.push({i:rec.id+'-'+i,k,m:pool[Math.floor(R()*pool.length)],r});
+  }
+  return items;
+}
+function asWeapon(it){return {id:it.i,k:it.k,m:it.m,r:it.r}}
+function openChest(rec){
+  if(!rec.opened){
+    rec.opened=true;rec.items=rollLoot(rec);rec.openT=Math.max(rec.openT,.01);
+    RyleAudio.ui('chest');toast(CHEST_RARITY[rec.rare]+' chest! ✨');
+    setTimeout(()=>{if(!$('hud').classList.contains('hide')&&$('m').classList.contains('hide'))lootModal(rec)},420);
+  }else{
+    RyleAudio.ui('open');lootModal(rec);
+  }
+}
+function tryChest(cx,cy){
+  const list=[];for(const r of CHESTS.values())if(r.g&&r.g.parent)list.push(r.g);
+  if(!list.length)return false;
+  rc2.setFromCamera({x:cx/innerWidth*2-1,y:-(cy/innerHeight)*2+1},cam);
+  const hits=rc2.intersectObjects(list,true);if(!hits.length)return false;
+  let o=hits[0].object;while(o&&!o.userData.chest)o=o.parent;if(!o)return false;
+  const rec=o.userData.chest;
+  if(Math.hypot(rec.gx+.5-(pos.x+ox),rec.gz+.5-(pos.z+oz))>4.6){toast('Walk closer to the chest 🎁');return true}
+  const r=pick(cx,cy);
+  if(r&&Math.hypot(r.hit[0]+.5-cam.position.x,r.hit[1]+.5-cam.position.y,r.hit[2]+.5-cam.position.z)<hits[0].distance)return false;
+  openChest(rec);return true;
+}
+function setEquip(id,quiet){
+  const w=WEAPONS.find(x=>x.id===id);
+  EQUIPID=w?w.id:'';
+  while(me.loot.children.length)me.loot.remove(me.loot.children[0]);
+  while(vm.loot.children.length)vm.loot.remove(vm.loot.children[0]);
+  if(w){const p=weaponProto(w.k,w.m);me.loot.add(p.clone());vm.loot.add(p.clone())}
+  tools(mode);
+}
+function addWeapon(w){
+  if(!w||WEAPONS.some(x=>x.id===w.id))return false;
+  WEAPONS.push({id:w.id,k:w.k,m:w.m,r:w.r});
+  if(!EQUIPID)setEquip(w.id,true);
+  syncBag();bumpBag();return true;
+}
+function syncBag(){
+  const b=$('bBag');if(!b)return;
+  const n=WEAPONS.length,bn=$('bBagN');
+  if(bn){bn.textContent=n;bn.classList.toggle('hide',!n)}
+  b.classList.toggle('full',!!n);
+}
+function bumpBag(){const b=$('bBag');if(!b)return;b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump')}
+function weaponIcon(w){
+  const c=hex(WMAT[w.m][1]),hi=hex(lighten(WMAT[w.m][1],.4));
+  if(w.k==='bow')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2c8 4 8 16 0 20" fill="none" stroke="'+c+'" stroke-width="2.4"/><path d="M7 2v20" stroke="#eef4f7" stroke-width="1"/><path d="M7 12h11" stroke="#e0b87a" stroke-width="1.6"/><path d="m20 12-4-2v4z" fill="'+hi+'"/></svg>';
+  if(w.k==='axe')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21 16 6" stroke="#7a4a22" stroke-width="2.8" stroke-linecap="round"/><path d="M13 2c4-1 7 1 8 4s0 5-3 6l-5-4z" fill="'+c+'" stroke="'+hi+'"/><path d="M13 2 8 6l5 4z" fill="'+hi+'"/></svg>';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2.5 21.5 3l.5 5.5-9 9-3-3z" fill="'+c+'" stroke="'+hi+'"/><path d="m10 15-4.5 4.5-3-3L7 12z" fill="#6b4423"/><path d="M3 21l-1 1" stroke="#e0b87a" stroke-width="1.5"/></svg>';
+}
+function wpnRow(w,action){
+  const eq=action!=='take'&&w.id===EQUIPID,rc=hex(WRAR[w.r][1]),mc=hex(WMAT[w.m][1]);
+  const act=action==='take'?'<button class="wbtn" data-take="'+esc(w.id)+'">Collect</button>':'<button class="wbtn'+(!eq?'':' on')+'" data-equip="'+esc(w.id)+'">'+(eq?'Equipped':'Equip')+'</button>';
+  return '<div class="wpn'+(!eq?'':' eq')+(action==='take'?' loot':'')+'" data-wid="'+esc(w.id)+'" data-kind="'+w.k+'" data-mat="'+WMAT[w.m][0]+'" data-rar="'+WRAR[w.r][0]+'" style="--rc:'+rc+'">'+
+    '<span class="wi">'+weaponIcon(w)+'</span><span class="wn"><b>'+weaponName(w)+'</b><small><em class="rb">'+WRAR[w.r][0]+'</em><i class="dot" style="background:'+mc+'"></i>'+WMAT[w.m][0]+'</small></span>'+act+'</div>';
+}
+function openBag(){
+  const n=WEAPONS.length;
+  const rows=n?WEAPONS.map(w=>wpnRow(w,'equip')).join(''):'<p class="bag-empty">🎁 Explore the world and open a chest to find your first weapon!</p>';
+  modal('<div class="bag-head"><span class="bag-ic">🎒</span><div><h2>Weapon Bag</h2><p class="bag-sub">'+(n?n+' weapon'+(n>1?'s':'')+' ready for adventure':'Your bag is waiting for treasure')+'</p></div></div><div class="bag-list" id="bagList">'+rows+'</div><button class="big alt" id="bagClose">Close</button>',m=>{
+    m.querySelector('.card').classList.add('bagcard');
+    m.querySelector('#bagClose').onclick=close;
+    m.querySelectorAll('[data-equip]').forEach(b=>b.onclick=()=>{
+      const w=WEAPONS.find(x=>x.id===b.dataset.equip);
+      if(!w)return;
+      if(w.id===EQUIPID){setMode('sword');RyleAudio.ui('open');toast(weaponName(w)+' is already equipped ⚔️');close();return}
+      setEquip(w.id);setMode('sword');RyleAudio.ui('loot');toast(weaponName(w)+' equipped! ⚔️');openBag();
+    });
+    m.onclick=e=>{if(e.target===m)close()};
+  });
+}
+function lootModal(rec){
+  const col=CHEST_COL[rec.rare][0];
+  const rows=rec.items.length?rec.items.map(it=>wpnRow(asWeapon(it),'take')).join(''):'<p class="bag-empty">This chest is empty. 🕸️</p>';
+  modal('<div class="bag-head"><span class="bag-ic chest-ic" style="--rc:'+hex(col)+'">🎁</span><div><h2>'+CHEST_RARITY[rec.rare]+' Chest</h2><p class="bag-sub">'+(rec.items.length?'Take what you like — the chest remembers.':'All treasure collected!')+'</p></div></div><div class="bag-list" id="lootList">'+rows+'</div><div class="row"><button class="big soft" id="lootClose">Leave</button>'+(rec.items.length?'<button class="big" id="lootAll">Collect All</button>':'')+'</div>',m=>{
+    m.querySelector('.card').classList.add('bagcard');
+    m.querySelector('#lootClose').onclick=close;
+    const all=m.querySelector('#lootAll');
+    if(all)all.onclick=()=>{
+      let n=0;for(const it of rec.items)if(addWeapon(asWeapon(it)))n++;
+      rec.items.length=0;RyleAudio.ui('loot');toast(n?('Collected '+n+' weapon'+(n>1?'s':'')+'! ⚔️'):'Nothing left in this chest');
+      lootModal(rec);
+    };
+    m.querySelectorAll('[data-take]').forEach(b=>b.onclick=()=>{
+      const i=rec.items.findIndex(x=>x.i===b.dataset.take);if(i<0)return;
+      const it=rec.items.splice(i,1)[0],w=asWeapon(it);
+      if(addWeapon(w)){RyleAudio.ui('loot');toast(weaponName(w)+' collected! ⚔️')}
+      lootModal(rec);
+    });
+    m.onclick=e=>{if(e.target===m)close()};
+  });
+}
+$('bBag').onclick=()=>{RyleAudio.ui('open');openBag()};
+syncBag();
 function getName(){if(NAME)return NAME;try{NAME=localStorage.getItem('rylecraft.name')||''}catch(e){}return NAME}
 function setName(v){NAME=v;try{localStorage.setItem('rylecraft.name',v)}catch(e){}document.getElementById('hn').textContent='Hi, '+v+'! 👑'}
 function askName(first){modal('<h2>'+(first?'Welcome, builder! 👋':'Change your name')+'</h2><p>What should we call you?</p><input id="nm" maxlength="14" autocomplete="off" placeholder="Your name" value="'+esc(getName())+'"><div class="row">'+(first?'':'<button class="big soft" id="nc">Cancel</button>')+'<button class="big" id="ny">'+(first?'Let’s go!':'Save')+'</button></div>',m=>{
@@ -1075,14 +1515,27 @@ function loop(t){
     if(keys[' '])vy=1;else if(keys.shift)vy=-1;else if(!keys[' ']&&!document.activeElement.classList.contains('r')&&vy&&(keys[' ']===0||keys.shift===0))vy=0;
     stepMove(dt);jx=ojx;jy=ojy;if(pos.x<40||pos.x>W-40||pos.z<40||pos.z>D-40)recenter();
   }else{yaw+=dt*.08;mvg=0}
-  cam.position.copy(pos);cam.rotation.set(pitch,yaw,0);
+  cam.position.copy(pos);
+  // sit up on the saddle so the mount stays visible in front instead of covering the view
+  if(!third)cam.position.y+=rideEye();
+  cam.rotation.set(pitch,yaw,0);
+  let camClose=false;
   if(third){const bx=Math.sin(yaw)*Math.cos(pitch),by=-Math.sin(pitch),bz=Math.cos(yaw)*Math.cos(pitch);let t=0;
-    while(t<4.5){const n=t+.15,b=get(Math.floor(pos.x+bx*n),Math.floor(pos.y+by*n),Math.floor(pos.z+bz*n));if(b&&b!==13&&(b<16||b>22))break;t=n}
+    const maxD=riding?RIDE_CAM.d:4.5;
+    while(t<maxD){const n=t+.15,b=get(Math.floor(pos.x+bx*n),Math.floor(pos.y+by*n),Math.floor(pos.z+bz*n));if(b&&b!==13&&(b<16||b>22))break;t=n}
     t=Math.max(0,t-.2);
-    cam.position.set(pos.x+bx*t,pos.y+by*t,pos.z+bz*t);
-    if(t<.6)me.visible=false}
-  me.visible=third&&!$('hud').classList.contains('hide');vm.visible=!third&&!$('hud').classList.contains('hide');if(me.visible||vm.visible)stepSwing(dt);stepVM(dt);stepMe(dt);stars.position.copy(cam.position);orb.position.set(cam.position.x+80,cam.position.y+110,cam.position.z-90);orb.lookAt(cam.position);stepWeather(dt);stepRain(dt);
-  stepAnimals(dt);stepFish(dt);updMount();trk(dt);updUD();audioTick(dt);
+    // desktop: over-the-right-shoulder so the centre of the screen lands on the tool,
+    // not the head. Touch screens keep the centred camera they already had.
+    const rx=Math.cos(yaw),rz=-Math.sin(yaw),sh=MOBILE?0:.55,up=MOBILE?0:(riding?RIDE_CAM.up:.3);
+    let cx=pos.x+bx*t+rx*sh,cy=pos.y+by*t+up+(riding?rideLift():0),cz=pos.z+bz*t+rz*sh;
+    const sb=get(Math.floor(cx),Math.floor(cy),Math.floor(cz));
+    if(sb&&sb!==13&&(sb<16||sb>22)){cx=pos.x+bx*t;cy=pos.y+by*t;cz=pos.z+bz*t}
+    cam.position.set(cx,cy,cz);
+    if(riding&&!MOBILE)cam.rotation.x+=RIDE_CAM.tilt;
+    if(t<.6)camClose=true}
+  me.visible=third&&!camClose&&!$('hud').classList.contains('hide');vm.visible=!third&&!$('hud').classList.contains('hide');if(me.visible||vm.visible)stepSwing(dt);
+  stepVM(dt);stepMe(dt);stars.position.copy(cam.position);orb.position.set(cam.position.x+80,cam.position.y+110,cam.position.z-90);orb.lookAt(cam.position);stepWeather(dt);stepRain(dt);
+  stepAnimals(dt);stepFish(dt);updMount();syncCrosshair();trk(dt);updUD();audioTick(dt);stepChests(dt);
   for(let q=0;q<2&&lightQ.length;q++){const k=lightQ.pop();rc(k%CX,Math.floor(k/CX))}
   const uw=get(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z))===13;if(uw){scene.background.setHex(0x2a6fb8);scene.fog.color.setHex(0x2a6fb8);scene.fog.near=1;scene.fog.far=24}else{scene.background.copy(skyC);scene.fog.color.copy(skyC);scene.fog.near=FN;scene.fog.far=FF}
   clouds.forEach(c=>{const q=c.position;q.x+=dt*.6;if(q.x-pos.x>120)q.x-=240;else if(q.x-pos.x<-120)q.x+=240;if(q.z-pos.z>120)q.z-=240;else if(q.z-pos.z<-120)q.z+=240});

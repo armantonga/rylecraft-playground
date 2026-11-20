@@ -25,12 +25,15 @@ Open `index.html` in a browser to play. For the most reliable saving, serve the 
 - `function releasesModal()`    "What's New" release notes in the same picture-book frame (version, date, feature cards)
 - `function howToPlayModal()`   "How to Play" controls card in the same picture-book frame
 - `function stepMove`          walking, jumping, swimming, diving, flying
-- `function save()` / `load()` save format: seed + your edits + animals + weather (localStorage `littleBuilderWorld.v6`, name in `rylecraft.name`)
+- `function save()` / `load()` save format: seed + your edits + animals + weather + chests + weapon bag + equipped weapon (localStorage `littleBuilderWorld.v6`, name in `rylecraft.name`)
 - `js/audio.js`               `RyleAudio` engine: seven generative moods, material-aware block/tool/step sounds, animal voices, ambience beds, spatial panners, voice budget and settings (`rylecraft.audio.v1`)
 
 ## Controls
-Touch: left side drag = move, right side drag = look, pinch = zoom, tap = build / mine / hit.
-Desktop: WASD or arrows move, Q E turn, Space jump or up, Shift down or dive, mouse wheel zoom.
+Touch: left side drag = move, right side drag = look, pinch = zoom, tap = build / mine / hit. Tap the 🐴 button to ride a nearby animal.
+Riding: the rider sits astride the saddle, so first person shows the animal's neck and head in front of you and third person pulls the camera back to frame the rider on the mount.
+Desktop: click the world once to grab the mouse (pointer lock), then move the mouse to look — left-click uses your tool at the centre of the screen, Esc or Ctrl releases it, Ctrl grabs it again. WASD or arrows move, Space jump or up, Shift down or dive, wheel zoom.
+PC shortcuts: 1 Build, 2 Mine, 3 Sword, B blocks, G bag, F fly, V view, R ride / get off, Ctrl mouse pointer, M music, T weather, H home, Alt+Enter fullscreen, Ctrl/⌘+S save.
+Target guide: while the mouse is captured, the block you will build on or mine is outlined in white (red when it is out of reach). Third person sits over the right shoulder so the held tool lines up with the centre of the screen instead of the avatar's head. Sword mode hides the block guide and shows a small white + instead.
 
 ## Deploying to Vercel
 This is a plain static site — no build step. `vercel.json` adds clean URLs and
